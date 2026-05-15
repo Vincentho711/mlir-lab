@@ -1,0 +1,14 @@
+# Bazel output symlinks created at repo root
+bazel-*
+
+# Machine-local Bazel overrides (see .bazelrc for usage)
+.bazelrc.user
+
+# IDE
+.idea/
+.vscode/
+*.sw[po]
+
+# Python
+__pycache__/
+*.pyc

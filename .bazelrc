@@ -1,0 +1,18 @@
+# Compiler
+build --action_env=CC=clang
+build --action_env=CXX=clang++
+build --linkopt=-fuse-ld=lld
+
+# C++20
+build --cxxopt=-std=c++20
+build --host_cxxopt=-std=c++20
+
+# Coloured output
+build --color=yes
+
+# Only print test output on failure
+test --test_output=errors
+
+# Machine-local overrides (e.g. disk_cache, repo overrides).
+# Create .bazelrc.user locally — it is gitignored and never committed.
+try-import %workspace%/.bazelrc.user
