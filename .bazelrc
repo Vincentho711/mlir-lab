@@ -1,4 +1,9 @@
 # Compiler
+# --repo_env sets CC/CXX during the repository phase so cc_configure
+# (the toolchain detection rule) picks up Clang on every fresh server start.
+# --action_env makes them visible to all build actions.
+build --repo_env=CC=clang
+build --repo_env=CXX=clang++
 build --action_env=CC=clang
 build --action_env=CXX=clang++
 build --linkopt=-fuse-ld=lld

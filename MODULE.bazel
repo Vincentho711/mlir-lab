@@ -38,5 +38,8 @@ http_archive(
 llvm_configure = use_repo_rule("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
 llvm_configure(
     name = "llvm-project",
-    targets = ["X86"],
+    targets = [
+        "NVPTX",
+        "X86",
+    ],
 )
