@@ -34,6 +34,14 @@ module {
         func.return %result : f32
     }
 
+    // Converting between float and integers
+    func.func @float_to_sint() -> i32 {
+        %f = arith.constant 3.678 : f32
+        %result = arith.fptosi %f : f32 to i32
+
+        func.return %result : i32
+    }
+
     // Index type
     func.func @index_type() -> index {
         %i = arith.constant 10 : index
@@ -50,6 +58,44 @@ module {
         %f = arith.constant false
 
         func.return %c : i32
+    }
+
+    // Comparison
+    func.func @comparisons() -> i1 {
+        %a  = arith.constant 10 : i32
+        %b  = arith.constant 20 : i32
+
+        // signed less than, lhs < rhs
+        %less = arith.cmpi slt, %a, %b : i32
+        // equal
+        %equal = arith.cmpi eq, %a, %b : i32
+        // signed greater than, lhs > rhs
+        %greater = arith.cmpi sgt, %a, %b : i32
+        // signed greater than or equal to, lhs >= rhs
+        %greater_equal = arith.cmpi sge, %a, %b : i32
+
+        func.return %greater_equal : i1
+    }
+
+    // Select operation
+    // If the condition is true, return the first value, else the second.
+    func.func @select_op() -> i32 {
+        %a = arith.constant 40 : i32
+        %b = arith.constant 41 : i32
+
+        %cond = arith.cmpi slt, %a, %b : i32
+        %result = arith.select %cond, %a, %b : i32
+
+        func.return %result : i32
+    }
+
+    // Truncation, it throws away the high bits
+    func.func @truncation() -> i8 {
+        %n = arith.constant 300 : i32
+        // 300 in binary : 0000_0001_0010_1100
+        // i8 keeps only 8 bits : 0010_1100 = 44
+        %result = arith.trunci %n : i32 to i8
+        func.return %result : i8
     }
 
 }

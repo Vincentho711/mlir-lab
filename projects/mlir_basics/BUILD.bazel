@@ -1,4 +1,4 @@
 filegroup(
     name = "mlir_files",
-    srcs = glob([".*mlir"])
+    srcs = glob(["*.mlir"])
 )
