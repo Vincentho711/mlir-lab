@@ -1,3 +1,12 @@
+// RUN: mlir-opt %s | FileCheck %s
+
+// CHECK-LABEL: func.func @cf_min
+// CHECK:         cf.cond_br
+// CHECK-LABEL: func.func @scf_max
+// CHECK:         scf.if
+// CHECK-LABEL: func.func @sum_to_n
+// CHECK:         scf.for
+
 module {
     // Explicit control flow with the cf dialet.
     // Multiple blocks, block arguments, and branches.

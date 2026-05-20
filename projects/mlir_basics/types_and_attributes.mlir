@@ -1,3 +1,20 @@
+// RUN: mlir-opt %s | FileCheck %s
+
+// CHECK-LABEL: func.func @integer_types
+// CHECK:         arith.extsi
+// CHECK-LABEL: func.func @float_types
+// CHECK:         arith.extf
+// CHECK-LABEL: func.func @int_to_float
+// CHECK:         arith.sitofp
+// CHECK-LABEL: func.func @float_to_sint
+// CHECK:         arith.fptosi
+// CHECK-LABEL: func.func @comparisons
+// CHECK:         arith.cmpi
+// CHECK-LABEL: func.func @select_op
+// CHECK:         arith.select
+// CHECK-LABEL: func.func @truncation
+// CHECK:         arith.trunci
+
 module {
     // Integer types of different widths
     func.func @integer_types() -> i64 {
