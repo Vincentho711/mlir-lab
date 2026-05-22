@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 
 # 1. Declare the .td files as a library so gentbl can depend on it
@@ -16,9 +16,9 @@ gentbl_cc_library(
     name = "ZeroCountOpsIncGen",
     tbl_outs = [
         (["--gen-dialect-decls", "--dialect=zero_count"], "include/zero_count/ZeroCountDialect.h.inc"),
-        (["--gen-dialect-defs", "--dialect=zero_count"], "lib/ZeroCountDialect.cpp.inc"),
+        (["--gen-dialect-defs", "--dialect=zero_count"], "include/zero_count/ZeroCountDialect.cpp.inc"),
         (["--gen-op-decls"], "include/zero_count/ZeroCountOps.h.inc"),
-        (["--gen-op-defs"], "lib/ZeroCountOps.cpp.inc"),
+        (["--gen-op-defs"], "include/zero_count/ZeroCountOps.cpp.inc"),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "include/zero_count/ZeroCountOps.td",
@@ -32,8 +32,20 @@ cc_library(
     hdrs = ["include/zero_count/ZeroCountDialect.h"],
     includes = ["include"],
     deps = [
-        ":ZeroCountOptsIncGen",
+        ":ZeroCountOpsIncGen",
         "@llvm-project//mlir:IR",
-        "@lvm-project//mlir:Support",
+        "@llvm-project//mlir:Support",
+    ],
+)
+
+# 4. the zero-count-opt tool
+cc_binary(
+    name = "zero-count-opt",
+    srcs = ["tools/zero-count-opt.cpp"],
+    deps = [
+        ":ZeroCountDialect",
+        "@llvm-project//mlir:MlirOptLib",
+        "@llvm-project//mlir:RegisterAllDialects",
+        "@llvm-project//mlir:RegisterAllPasses",
     ],
 )
