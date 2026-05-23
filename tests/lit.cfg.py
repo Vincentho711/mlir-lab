@@ -15,6 +15,8 @@ config.suffixes = [".mlir"]
 runfiles_dir = Path(os.environ["RUNFILES_DIR"])
 
 tool_dirs = []
+
+# LLVM tools: mlir-opt, FileCheck, mlir-translate, etc.
 for subdir in runfiles_dir.iterdir():
     if "llvm-project" in subdir.name:
         for tool_subdir in ["mlir", "llvm"]:
@@ -22,10 +24,19 @@ for subdir in runfiles_dir.iterdir():
             if p.exists():
                 tool_dirs.append(str(p))
 
-# Custom project tools (mlir-lab-opt and future additions).
+# Repo-wide tools: mlir-lab-opt and any other binaries under //tools.
 tools_dir = runfiles_dir / "_main" / "tools"
 if tools_dir.exists():
     tool_dirs.append(str(tools_dir))
+
+# Per-project tools: zero-count-opt and future *-opt binaries.
+# Any binary declared via glob_lit_tests(tools=[...]) lands under
+# _main/projects/<project>/ in the runfiles sandbox.
+projects_dir = runfiles_dir / "_main" / "projects"
+if projects_dir.exists():
+    for project_dir in projects_dir.iterdir():
+        if project_dir.is_dir():
+            tool_dirs.append(str(project_dir))
 
 config.environment["PATH"] = ":".join(tool_dirs) + ":" + os.environ["PATH"]
 

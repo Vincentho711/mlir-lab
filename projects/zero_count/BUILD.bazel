@@ -38,12 +38,29 @@ cc_library(
     ],
 )
 
+# 4. The LowerZeroCountPass
+cc_library(
+    name = "LowerZeroCountPass",
+    srcs = ["lib/LowerZeroCountPass.cpp"],
+    deps = [
+        ":ZeroCountDialect",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:MathDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TransformUtils",
+        "@llvm-project//mlir:IR",
+    ]
+)
+
 # 4. the zero-count-opt tool
 cc_binary(
     name = "zero-count-opt",
     srcs = ["tools/zero-count-opt.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":ZeroCountDialect",
+        ":LowerZeroCountPass",
         "@llvm-project//mlir:MlirOptLib",
         "@llvm-project//mlir:RegisterAllDialects",
         "@llvm-project//mlir:RegisterAllPasses",

@@ -3,6 +3,9 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "zero_count/ZeroCountDialect.h"
 
+// Forward declarations
+namespace mlir::zero_count { void registerZeroCountPasses(); }
+
 int main(int argc, char **argv) {
     mlir::DialectRegistry registry;
 
@@ -13,6 +16,9 @@ int main(int argc, char **argv) {
 
     // Reigster zero_count dialect into the same registry.
     registry.insert<mlir::zero_count::ZeroCountDialect>();
+
+    // Register custom passes
+    mlir::zero_count::registerZeroCountPasses();
 
     return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "zero-count-opt", registry));
 }
