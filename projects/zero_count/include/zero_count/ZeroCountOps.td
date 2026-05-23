@@ -41,4 +41,32 @@ def CountZerosOp : ZeroCount_Op<"count_zeros"> {
     let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
+def CountZerosInRangeOp : ZeroCount_Op<"count_zeros_in_range"> {
+    let summary = "Count zero bits in the half-open bit range [lo, hi) of an i32.";
+    let description = [{
+        Returns the number of zero bits in positions [lo, hi) of the input.
+        Both lo and hi are compile-time interger attributes.
+
+        Invariants verified at compile time:
+            - lo >= 0
+            - hi <= 32
+            - lo < hi
+        Example:
+            // count zeros in the middle 16 bits (positions 8..23)
+            %r = zero_count.count_zeros_in_range %x {lo = 8 : i32, hi = 24 : i32} : i32
+    }];
+
+    let arguments = (ins
+        I32:$input,
+        I32Attr:$lo,
+        I32Attr:$hi
+    );
+
+    let results = (outs I32:$result);
+
+    let assemblyFormat = "$input attr-dict `:` type($input)";
+
+    let hasVerifier = 1;
+}
+
 #endif // ZERO_COUNT_OPS_TD

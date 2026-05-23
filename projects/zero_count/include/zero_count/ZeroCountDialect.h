@@ -4,6 +4,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 
 // Include the generated dialect class
 #include "zero_count/ZeroCountDialect.h.inc"
