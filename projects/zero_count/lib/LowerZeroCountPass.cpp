@@ -17,7 +17,7 @@ struct CountZeroLowering : public mlir::OpRewritePattern<mlir::zero_count::Count
         mlir::Value input = op.getInput();
 
         // This is the lowering process
-        // Create a operation which creates -1 in i32, this is -xFFFFFFFF - all 32 bits set
+        // Create a operation which creates -1 in i32, this is 0xFFFFFFFF - all 32 bits set
         auto negOne = mlir::arith::ConstantOp::create(rewriter, loc, rewriter.getI32IntegerAttr(-1));
         // XOR with all-ones flips every bit, from 1 to 0.
         auto flipped = mlir::arith::XOrIOp::create(rewriter, loc, input, negOne);
@@ -28,6 +28,34 @@ struct CountZeroLowering : public mlir::OpRewritePattern<mlir::zero_count::Count
         rewriter.replaceOp(op, zeros);
         return mlir::success();
     }
+};
+
+struct CountZerosInRangeLowering : public mlir::OpRewritePattern<mlir::zero_count::CountZerosInRangeOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(mlir::zero_count::CountZerosInRangeOp op, mlir::PatternRewriter &rewriter) const override {
+        mlir::Location loc = op.getLoc();
+        mlir::Value input = op.getInput();
+        // Read compile-time attributes into C++ integers
+        int32_t lo = op.getLo();
+        int32_t hi = op.getHi();
+
+        // Computer mask, convert to int64_t to ensure that it will work for when lo = 0 and hi = 32 for 1 << 32 to be valid
+        int32_t mask = static_cast<int32_t>(((int64_t(1) << (hi - lo)) - 1) << lo);
+
+        // Create a MLIR constant of the mask
+        auto maskVal = mlir::arith::ConstantOp::create(rewriter, loc, rewriter.getI32IntegerAttr(mask));
+        // Apply the mask to input with AND operation
+        auto isolated = mlir::arith::AndIOp::create(rewriter, loc, input, maskVal);
+        // Flip from 0 to 1 with XOR using the maskVal
+        auto flipped = mlir::arith::XOrIOp::create(rewriter, loc, isolated, maskVal);
+        // Count number of 1s in flipped
+        auto result = mlir::math::CtPopOp::create(rewriter, loc, flipped);
+
+        rewriter.replaceOp(op, result);
+        return mlir::success();
+    }
+
 };
 
 struct LowerZeroCountPass : public mlir::PassWrapper<LowerZeroCountPass, mlir::OperationPass<mlir::func::FuncOp>> {
@@ -45,6 +73,7 @@ struct LowerZeroCountPass : public mlir::PassWrapper<LowerZeroCountPass, mlir::O
     void runOnOperation() override {
         mlir::RewritePatternSet patterns(&getContext());
         patterns.add<CountZeroLowering>(&getContext());
+        patterns.add<CountZerosInRangeLowering>(&getContext());
         if (mlir::failed(mlir::applyPatternsGreedily(getOperation(), std::move(patterns))))
             signalPassFailure();
     }
