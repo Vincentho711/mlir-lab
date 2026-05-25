@@ -75,6 +75,8 @@ def CountZerosInRangeOp : ZeroCount_Op<"count_zeros_in_range"> {
     let hasVerifier = 1;
 
     let hasFolder = 1;
+
+    let hasCanonicalizer = 1;
 }
 
 #endif // ZERO_COUNT_OPS_TD

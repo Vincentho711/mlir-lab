@@ -68,6 +68,32 @@ mlir::OpFoldResult mlir::zero_count::CountZerosInRangeOp::fold(FoldAdaptor adapt
     return mlir::IntegerAttr::get(getResult().getType(), zeros);
 }
 
+// When CountZerosInRangeOp is called with lo = 0, and hi = 32, full range extraction can be canonicalise to CountZerosOp
+namespace { // Struct has internal linkage, making it invisible outside this translation unit
+struct CountZerosInRangeOpFullRangeToCountZerosOp
+    : public mlir::OpRewritePattern<mlir::zero_count::CountZerosInRangeOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(
+        mlir::zero_count::CountZerosInRangeOp op,
+        mlir::PatternRewriter &rewriter) const override {
+        // Only transform lo=0, hi=32
+        if (op.getLo() != 0 || op.getHi() != 32)
+            return mlir::failure();
+        rewriter.replaceOpWithNewOp<mlir::zero_count::CountZerosOp>(
+            op, op.getResult().getType(), op.getInput()
+        );
+        return mlir::success();
+    }
+};
+}
+
+// Static method to the CountZerosInRangeOpFullRangeToCountZerosOp canonicaliser, convert full range CountZerosInRangeOp to CountZerosOp
+void mlir::zero_count::CountZerosInRangeOp::getCanonicalizationPatterns(
+    mlir::RewritePatternSet &results, mlir::MLIRContext *context) {
+    results.add<CountZerosInRangeOpFullRangeToCountZerosOp>(context);
+}
+
 // Register every op that belongs to this dialect with addOperations<>()
 void mlir::zero_count::ZeroCountDialect::initialize() {
     addOperations<
