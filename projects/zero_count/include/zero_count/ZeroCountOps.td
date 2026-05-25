@@ -12,6 +12,10 @@ def ZeroCount_Dialect : Dialect {
     let summary = "A dialect for counting zeros.";
     let cppNamespace = "::mlir::zero_count"; // the C++ namespace for the generated code
     let useDefaultAttributePrinterParser = 0;
+    // fold() returns an IntegerAttr, MLIR needs to materialise it as a concerte op (an arith.constant).
+    // It does this by calling materializeConstant on the dialect.
+    // This tells ODS to generate the declaration: Operation *materializeConstant(OpBuilder &, Attribute, Type, Location);
+    let hasConstantMaterializer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -39,6 +43,8 @@ def CountZerosOp : ZeroCount_Op<"count_zeros"> {
     let results   = (outs I32:$result);
 
     let assemblyFormat = "$input attr-dict `:` type($input)";
+
+    let hasFolder = 1;
 }
 
 def CountZerosInRangeOp : ZeroCount_Op<"count_zeros_in_range"> {
@@ -67,6 +73,8 @@ def CountZerosInRangeOp : ZeroCount_Op<"count_zeros_in_range"> {
     let assemblyFormat = "$input attr-dict `:` type($input)";
 
     let hasVerifier = 1;
+
+    let hasFolder = 1;
 }
 
 #endif // ZERO_COUNT_OPS_TD
