@@ -58,6 +58,27 @@ struct CountZerosInRangeLowering : public mlir::OpRewritePattern<mlir::zero_coun
 
 };
 
+struct ClampLowering : public mlir::OpRewritePattern<mlir::zero_count::ClampOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(mlir::zero_count::ClampOp op, mlir::PatternRewriter &rewriter) const override {
+        mlir::Location loc = op.getLoc();
+        mlir::Value input = op.getInput();
+
+        int32_t lo = static_cast<int32_t>(op.getLo());
+        int32_t hi = static_cast<int32_t>(op.getHi());
+
+        auto loVal = mlir::arith::ConstantOp::create(rewriter, loc, rewriter.getI32IntegerAttr(lo));
+        auto hiVal = mlir::arith::ConstantOp::create(rewriter, loc, rewriter.getI32IntegerAttr(hi));
+        auto clampedLo = mlir::arith::MaxSIOp::create(rewriter, loc, input, loVal);
+        auto result = mlir::arith::MinSIOp::create(rewriter, loc, clampedLo, hiVal);
+
+        rewriter.replaceOp(op, result);
+        return mlir::success();
+    }
+};
+
+
 struct LowerZeroCountPass : public mlir::PassWrapper<LowerZeroCountPass, mlir::OperationPass<mlir::func::FuncOp>> {
     MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerZeroCountPass)
 
@@ -74,6 +95,7 @@ struct LowerZeroCountPass : public mlir::PassWrapper<LowerZeroCountPass, mlir::O
         mlir::RewritePatternSet patterns(&getContext());
         patterns.add<CountZeroLowering>(&getContext());
         patterns.add<CountZerosInRangeLowering>(&getContext());
+        patterns.add<ClampLowering>(&getContext());
         if (mlir::failed(mlir::applyPatternsGreedily(getOperation(), std::move(patterns))))
             signalPassFailure();
     }

@@ -1,4 +1,5 @@
 #include "llvm/ADT/APInt.h"
+#include <limits>
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "zero_count/ZeroCountDialect.h"
 
@@ -94,10 +95,48 @@ void mlir::zero_count::CountZerosInRangeOp::getCanonicalizationPatterns(
     results.add<CountZerosInRangeOpFullRangeToCountZerosOp>(context);
 }
 
+// ClampOp verify(), to ensure that compile-time attributes are valid
+mlir::LogicalResult mlir::zero_count::ClampOp::verify() {
+    int32_t lo = static_cast<int32_t>(getLo());
+    int32_t hi = static_cast<int32_t>(getHi());
+
+    if (lo > hi)
+        return emitOpError("lo (") << lo << ") must be less than hi (" << hi << ")";
+
+    return mlir::success();
+}
+
+// Folding of ClampOp
+mlir::OpFoldResult mlir::zero_count::ClampOp::fold(FoldAdaptor adaptor) {
+    int32_t lo = static_cast<int32_t>(getLo());
+    int32_t hi = static_cast<int32_t>(getHi());
+
+    // Value-returning fold: full range means no clamping is required.
+    // result is equal to SSA value
+    if (lo == std::numeric_limits<int32_t>::min() && hi == std::numeric_limits<int32_t>::max())
+        return getInput(); // Replace ClampOp's result with that SSA value
+
+    // Constant fold: both bounds are equal, result is always lo regardless of input
+    if (lo == hi)
+        return mlir::IntegerAttr::get(getResult().getType(), lo);
+
+    // Constant fold: input is a compile-time constant
+    auto inputAttr = llvm::dyn_cast_or_null<mlir::IntegerAttr>(adaptor.getInput());
+    if (!inputAttr)
+        return {};
+
+    int32_t val = static_cast<int32_t>(inputAttr.getValue().getZExtValue());
+    int32_t result = std::max(lo, std::min(hi, val));
+
+    return mlir::IntegerAttr::get(getResult().getType(), result);
+}
+
+
 // Register every op that belongs to this dialect with addOperations<>()
 void mlir::zero_count::ZeroCountDialect::initialize() {
     addOperations<
         mlir::zero_count::CountZerosOp,
-        mlir::zero_count::CountZerosInRangeOp
+        mlir::zero_count::CountZerosInRangeOp,
+        mlir::zero_count::ClampOp
     >();
 }

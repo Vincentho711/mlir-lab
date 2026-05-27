@@ -79,4 +79,36 @@ def CountZerosInRangeOp : ZeroCount_Op<"count_zeros_in_range"> {
     let hasCanonicalizer = 1;
 }
 
+def ClampOp : ZeroCount_Op<"clamp"> {
+    let summary = "Clamp an i32 value to the compile-time range [lo, hi].";
+    let description = [{
+        Returns the input clamped to the closed range [lo, hi]:
+            result = max(lo, min(hi, input))
+
+        Both lo and hi are compile-time integer attributes.
+
+        Folds:
+            - lo = INT32_MIN, hi = INT32_MMAX : identity, returns input unchanged
+            - lo = hi : returns constant lo
+            - constant input : computes result at compile-time
+
+        Example:
+            %r = zero_count.clamp %x {lo = 0 : i32, hi = 255 : i32} : i32
+    }];
+
+    let arguments = (ins
+        I32:$input,
+        I32Attr:$lo,
+        I32Attr:$hi
+    );
+
+    let results = (outs I32:$result);
+
+    let assemblyFormat = "$input attr-dict `:` type($input)";
+
+    let hasVerifier = 1;
+
+    let hasFolder = 1;
+}
+
 #endif // ZERO_COUNT_OPS_TD

@@ -68,4 +68,15 @@ func.func @test_lower_in_range_single_bit(%x: i32) -> i32 {
     func.return %r : i32
 }
 
+// CHECK-LABEL: func.func @test_lower_clamp
+func.func @test_lower_clamp(%x: i32) -> i32 {
+    // CHECK-NOT: zero_count.clamp
+    // CHECK:     arith.constant 0 : i32
+    // CHECK:     arith.constant 255 : i32
+    // CHECK:     arith.maxsi
+    // CHECK:     arith.minsi
+    %r = zero_count.clamp %x {lo = 0 : i32, hi = 255 : i32} : i32
+    func.return %r : i32
+}
+
 

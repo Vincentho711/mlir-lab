@@ -29,3 +29,11 @@ func.func @lo_eq_hi(%x : i32) -> i32 {
     %r = zero_count.count_zeros_in_range %x {lo = 10 : i32, hi = 10 : i32} : i32
     func.return %r : i32
 }
+
+// -----
+// CHECK-LABEL: func.func @test_clamp_invalid_range
+func.func @test_clamp_invalid_range(%x: i32) -> i32 {
+    // expected-error @below {{lo (10) must be less than hi (5)}}
+    %r = zero_count.clamp %x {lo = 10 : i32, hi = 5 : i32} : i32
+    func.return %r : i32
+}
