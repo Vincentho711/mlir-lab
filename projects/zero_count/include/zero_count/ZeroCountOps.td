@@ -111,4 +111,35 @@ def ClampOp : ZeroCount_Op<"clamp"> {
     let hasFolder = 1;
 }
 
+def MatmulOp : ZeroCount_Op<"matmul"> {
+    let summary = "Matrix multiply two 2-D f32 tensors.";
+
+    let arguments = (ins
+        AnyTensor:$lhs,
+        AnyTensor:$rhs
+    );
+
+    let results = (outs AnyTensor:$result);
+
+    let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
+
+    let hasVerifier = 1;
+}
+
+def BufMatmulOp : ZeroCount_Op<"buf_matmul"> {
+    let summary = "Bufferised matmul on memrefs.";
+
+    let arguments = (ins
+        AnyMemRef:$lhs,
+        AnyMemRef:$rhs,
+        AnyMemRef:$result
+    );
+
+    let results = (outs);
+
+    let assemblyFormat = "$lhs `,` $rhs `,` $result attr-dict `:` type($lhs) `,` type($rhs) `,` type($result)";
+
+    let hasVerifier = 1;
+}
+
 #endif // ZERO_COUNT_OPS_TD

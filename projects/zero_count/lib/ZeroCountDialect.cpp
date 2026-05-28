@@ -131,12 +131,85 @@ mlir::OpFoldResult mlir::zero_count::ClampOp::fold(FoldAdaptor adaptor) {
     return mlir::IntegerAttr::get(getResult().getType(), result);
 }
 
+// MatmulOp verify() to ensure the rank and type of both lhs and rhs tensor
+mlir::LogicalResult mlir::zero_count::MatmulOp::verify() {
+    auto lhsType = mlir::cast<mlir::RankedTensorType>(getLhs().getType());
+    auto rhsType = mlir::cast<mlir::RankedTensorType>(getRhs().getType());
+    auto resultType = mlir::cast<mlir::RankedTensorType>(getResult().getType());
+
+    if (lhsType.getRank() != 2)
+        return emitOpError("lhs must be a rank-2 tensor, got rank ") << lhsType.getRank();
+    if (rhsType.getRank() != 2)
+        return emitOpError("rhs must be a rank-2 tensor, got rank ") << rhsType.getRank();
+    if (!lhsType.getElementType().isF32())
+        return emitOpError("lhs element type must be f32");
+    if (!rhsType.getElementType().isF32())
+        return emitOpError("rhs element type must be f32");
+
+    int64_t lhsK = lhsType.getDimSize(1);
+    int64_t rhsK = rhsType.getDimSize(0);
+
+    if (lhsK != rhsK)
+        return emitOpError("contracting dimension mismatch: lhs dim[1]=")
+            << lhsK << " vs rhs dim[0]=" << rhsK;
+
+    int64_t M = lhsType.getDimSize(0);
+    int64_t N = rhsType.getDimSize(1);
+
+    if (resultType.getDimSize(0) != M || resultType.getDimSize(1) != N)
+        return emitOpError("result shape must be [")
+            << M << ", " << N << "], got ["
+            << resultType.getDimSize(0) << ", " << resultType.getDimSize(1) << "]";
+    if (!resultType.getElementType().isF32())
+        return emitOpError("result element type must be f32");
+
+    return mlir::success();
+}
+
+// BufMatmulOp verify, similar to MatmulOp's verifier
+mlir::LogicalResult mlir::zero_count::BufMatmulOp::verify() {
+    auto lhsType = mlir::cast<mlir::MemRefType>(getLhs().getType());
+    auto rhsType = mlir::cast<mlir::MemRefType>(getRhs().getType());
+    auto resultType = mlir::cast<mlir::MemRefType>(getResult().getType());
+
+    if (lhsType.getRank() != 2)
+        return emitOpError("lhs must be a rank-2 memref, got rank ") << lhsType.getRank();
+    if (rhsType.getRank() != 2)
+        return emitOpError("rhs must be a rank-2 memref, got rank ") << rhsType.getRank();
+    if (resultType.getRank() != 2)
+        return emitOpError("result must be a rank-2 memref, got rank ") << resultType.getRank();
+
+    if (!lhsType.getElementType().isF32())
+        return emitOpError("lhs element type must be f32");
+    if (!rhsType.getElementType().isF32())
+        return emitOpError("rhs element type must be f32");
+    if (!resultType.getElementType().isF32())
+        return emitOpError("result element type must be f32");
+
+    int64_t lhsK = lhsType.getDimSize(1);
+    int64_t rhsK = rhsType.getDimSize(0);
+    if (lhsK != rhsK)
+        return emitOpError("contracting dimension mismatch: lhs dim[1]=")
+            << lhsK << " vs rhs dim[0]=" << rhsK;
+
+    int64_t M = lhsType.getDimSize(0);
+    int64_t N = rhsType.getDimSize(1);
+    if (resultType.getDimSize(0) != M || resultType.getDimSize(1) != N)
+        return emitOpError("result shape must be [")
+            << M << ", " << N << "], got ["
+            << resultType.getDimSize(0) << ", " << resultType.getDimSize(1) << "]";
+
+    return mlir::success();
+}
+
 
 // Register every op that belongs to this dialect with addOperations<>()
 void mlir::zero_count::ZeroCountDialect::initialize() {
     addOperations<
         mlir::zero_count::CountZerosOp,
         mlir::zero_count::CountZerosInRangeOp,
-        mlir::zero_count::ClampOp
+        mlir::zero_count::ClampOp,
+        mlir::zero_count::MatmulOp,
+        mlir::zero_count::BufMatmulOp
     >();
 }
