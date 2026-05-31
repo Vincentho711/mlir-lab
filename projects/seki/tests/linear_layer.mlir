@@ -67,5 +67,18 @@ func.func @linear_layer_with_bias_and_relu(%X : memref<4x8xf32>, %W : memref<8x3
         linalg.yield %sum : f32
     }
 
+    // ReLU: Y[i,j] = max(0, Y[i,j]) - in-place, no ins operand
+    // CHECK: linalg.generic
+    linalg.generic {
+        indexing_maps = [
+            affine_map<(d0, d1) -> (d0, d1)>
+        ],
+        iterator_types = ["parallel", "parallel"]
+    } outs(%Y : memref<4x3xf32>) {
+    ^bb0(%y_val : f32) :
+        %result = arith.maximumf %y_val, %zero : f32
+        linalg.yield %result : f32
+    }
+
     func.return
 }
