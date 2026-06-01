@@ -1,4 +1,4 @@
-// RUN: zero-count-opt %s | FileCheck %s
+// RUN: seki-opt %s | FileCheck %s
 
 // CHECK-LABEL: func.func @linear_layer_matmul
 func.func @linear_layer_matmul(%X : memref<4x8xf32>, %W : memref<8x3xf32>, %Y : memref<4x3xf32>) {

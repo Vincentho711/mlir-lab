@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+
+cc_library(
+    name = "SekiPasses",
+    srcs = ["lib/SekiPasses.cpp"],
+    deps = [
+        "@llvm-project//mlir:Pass",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "seki-opt",
+    srcs = ["tools/seki-opt.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":SekiPasses",
+        "@llvm-project//mlir:MlirOptLib",
+        "@llvm-project//mlir:RegisterAllDialects",
+        "@llvm-project//mlir:RegisterAllPasses"
+    ],
+)

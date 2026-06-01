@@ -1,4 +1,4 @@
-// RUN: zero-count-opt %s | FileCheck %s
+// RUN: seki-opt %s | FileCheck %s
 // Manually tiled matmul: M=4, K=8, N=4, tile size TM=2, TN=2.
 // Only M and N are tiled (both parallel). K is not tiled here.
 
