@@ -1,22 +1,89 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 
+# Hardware target description files
+filegroup(
+    name = "seki_targets",
+    srcs = glob(["targets/*.mlir"]),
+    visibility = ["//visibility:public"],
+)
+
+# td sources
+td_library(
+    name = "SekiDialectTdFiles",
+    srcs = ["include/seki/SekiDialect.td"],
+    includes = ["include"],
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles",
+    ]
+)
+
+# tblgen codegen
+gentbl_cc_library(
+    name = "SekiDialectIncGen",
+    tbl_outs = [
+        (["--gen-dialect-decls", "--dialect=seki"], "include/seki/SekiDialect.h.inc"),
+        (["--gen-dialect-defs", "--dialect=seki"], "include/seki/SekiDialect.cpp.inc"),
+        (["--gen-attrdef-decls", "--attrdefs-dialect=seki"], "include/seki/SekiAttrs.h.inc"),
+        (["--gen-attrdef-defs", "--attrdefs-dialect=seki"], "include/seki/SekiAttrs.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki/SekiDialect.td",
+    deps = [":SekiDialectTdFiles"],
+)
+
+# C++ dialect library
+cc_library(
+    name = "SekiDialect",
+    srcs = [
+        "lib/SekiDialect.cpp",
+        "lib/SekiAttrs.cpp",
+        "lib/SekiTargetInfo.cpp",
+    ],
+    hdrs = [
+        "include/seki/SekiDialect.h",
+        "include/seki/SekiAttrs.h",
+        "include/seki/SekiTargetInfo.h"
+    ],
+    includes = ["include"],
+    deps = [
+        ":SekiDialectIncGen",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Support",
+    ],
+    visibility = ["//visibility:public"],
+
+)
+
+# Seki compiler passes
 cc_library(
     name = "SekiPasses",
-    srcs = ["lib/SekiPasses.cpp"],
+    srcs = [
+        "lib/SekiPasses.cpp",
+        "lib/MemorySpaceAssignmentPass.cpp"
+    ],
     deps = [
+        ":SekiDialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:AsmParser",
+        "@llvm-project//mlir:Support",
     ],
     visibility = ["//visibility:public"],
 )
 
+# seki-opt tool
 cc_binary(
     name = "seki-opt",
     srcs = ["tools/seki-opt.cpp"],
-    visibility = ["//visibility:public"],
     deps = [
+        ":SekiDialect",
         ":SekiPasses",
         "@llvm-project//mlir:MlirOptLib",
         "@llvm-project//mlir:RegisterAllDialects",
         "@llvm-project//mlir:RegisterAllPasses"
     ],
+    visibility = ["//visibility:public"],
 )

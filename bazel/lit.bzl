@@ -20,7 +20,7 @@ def _ensure_lit_cfg():
             testonly = True,
         )
 
-def lit_test(name = None, src = None, tools = [], size = "small", tags = None):
+def lit_test(name = None, src = None, tools = [], data = [], size = "small", tags = None):
     """Run a single .mlir file through lit.
 
     The .mlir file must contain RUN: and CHECK: directives. lit executes the
@@ -51,7 +51,7 @@ def lit_test(name = None, src = None, tools = [], size = "small", tags = None):
         name = name,
         size = size,
         args = ["-v", paths.join(native.package_name(), src)],
-        data = ["//tests:test_utilities", ":lit_cfg", name + ".filegroup"] + tools,
+        data = ["//tests:test_utilities", ":lit_cfg", name + ".filegroup"] + tools + data,
         srcs = ["//bazel:lit_wrapper.py"],
         main = "//bazel:lit_wrapper.py",
         deps = ["@llvm-project//llvm:lit"],
@@ -59,13 +59,15 @@ def lit_test(name = None, src = None, tools = [], size = "small", tags = None):
         tags = tags,
     )
 
-def glob_lit_tests(tools = [], size = "small"):
+def glob_lit_tests(tools = [], data = [], size = "small"):
     """Generate a lit_test for every .mlir file in the calling package.
 
     Args:
       tools: extra Bazel targets (binaries) placed in PATH for RUN: lines.
              Forwarded to every lit_test in this package.
+      data:  extra Bazel targets (data files) placed in runfiles for RUN: lines.
+             Forwarded to every lit_test in this package.
       size:  Bazel test size applied to all discovered tests
     """
     for src in native.glob(["*.mlir"]):
-        lit_test(src = src, tools = tools, size = size)
+        lit_test(src = src, tools = tools, data = data, size = size)

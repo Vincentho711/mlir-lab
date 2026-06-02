@@ -12,3 +12,7 @@ bazel-*
 # Python
 __pycache__/
 *.pyc
+
+# Logs and scratch
+*.log
+tmp/
