@@ -1,13 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 
-# Hardware target description files
-filegroup(
-    name = "seki_targets",
-    srcs = glob(["targets/*.mlir"]),
-    visibility = ["//visibility:public"],
-)
-
 # td sources
 td_library(
     name = "SekiDialectTdFiles",
@@ -39,11 +32,13 @@ cc_library(
         "lib/SekiDialect.cpp",
         "lib/SekiAttrs.cpp",
         "lib/SekiTargetInfo.cpp",
+        "lib/SekiTargets.cpp",
     ],
     hdrs = [
         "include/seki/SekiDialect.h",
         "include/seki/SekiAttrs.h",
-        "include/seki/SekiTargetInfo.h"
+        "include/seki/SekiTargetInfo.h",
+        "include/seki/SekiTargets.h"
     ],
     includes = ["include"],
     deps = [

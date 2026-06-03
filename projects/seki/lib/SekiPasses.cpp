@@ -1,9 +1,9 @@
 #include "seki/SekiDialect.h"
 #include "seki/SekiAttrs.h"
+#include "seki/SekiTargets.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 static llvm::cl::opt<std::string> sekiTargetOption(
@@ -13,18 +13,6 @@ static llvm::cl::opt<std::string> sekiTargetOption(
     llvm::cl::init(""));
 
 namespace {
-
-// Maps short target names to their canonical .mlir file paths.
-// Paths are relative to the workspace root — valid for `bazel run`.
-// TODO: Replace relative paths with Bazel runfiles data deps or
-// build-time genrule embedding so installed binaries can locate target files
-// without requiring the binary to run from the workspace root.
-static const llvm::StringMap<std::string> &namedTargetRegistry() {
-    static llvm::StringMap<std::string> registry{
-        {"seki-v1", "projects/seki/targets/seki-v1.mlir"},
-    };
-    return registry;
-}
 
 static bool isFilePath(llvm::StringRef s) {
     return s.ends_with(".mlir") || s.starts_with("/") ||
@@ -54,33 +42,29 @@ struct SekiAttachTargetPass
             return signalPassFailure();
         }
 
-        // Resolve named target to its file path.
-        std::string filePath;
+        mlir::Attribute attr;
+
         if (isFilePath(sekiTargetOption)) {
-            filePath = sekiTargetOption;
-        } else {
-            const auto &reg = namedTargetRegistry();
-            auto it = reg.find(sekiTargetOption);
-            if (it == reg.end()) {
-                mod.emitError("unknown target '") << sekiTargetOption
-                    << "'; known targets: seki-v1";
+            // External prototype target - load from file
+            auto buf = llvm::MemoryBuffer::getFile(sekiTargetOption);
+            if (!buf) {
+                mod.emitError("cannot open target file: ") << sekiTargetOption;
                 return signalPassFailure();
             }
-            filePath = it->second;
-        }
-
-        // Load and parse the target file.
-        auto buf = llvm::MemoryBuffer::getFile(filePath);
-        if (!buf) {
-            mod.emitError("cannot open target file: ") << filePath;
-            return signalPassFailure();
-        }
-
-        mlir::Attribute attr =
-            mlir::parseAttribute((*buf)->getBuffer(), mod.getContext());
-        if (!attr) {
-            mod.emitError("failed to parse target attribute from: ") << filePath;
-            return signalPassFailure();
+            attr = mlir::parseAttribute((*buf)->getBuffer(), mod.getContext());
+            if (!attr) {
+                mod.emitError("failed to parse target attribute from: ")
+                    << sekiTargetOption;
+                return signalPassFailure();
+            }
+        } else {
+            // Built-in named target - construct via factory.
+            attr = mlir::seki::getBuiltinTarget(sekiTargetOption, mod.getContext());
+            if (!attr) {
+                mod.emitError("unknown target '") << sekiTargetOption
+                    << "'; known built-in targets: seki-v1";
+                return signalPassFailure();
+            }
         }
 
         mod->setAttr("seki.target", attr);
@@ -91,8 +75,11 @@ struct SekiAttachTargetPass
 
 namespace mlir::seki {
 
+void registerMemorySpaceAssignmentPass();
+
 void registerSekiPasses() {
     mlir::PassRegistration<SekiAttachTargetPass>();
+    registerMemorySpaceAssignmentPass();
 }
 
 } // namespace mlir::seki
