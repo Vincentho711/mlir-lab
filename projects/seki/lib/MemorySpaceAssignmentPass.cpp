@@ -25,6 +25,13 @@ struct MemorySpaceAssignmentPass : mlir::PassWrapper<MemorySpaceAssignmentPass, 
     void runOnOperation() override {
         // Instantiate the SekiTargetInfo object
         mlir::ModuleOp mod = getOperation();
+
+        // Running "--seki-assign-memory-spaces" without "--seki-attach-target" should error out gracefully
+        if (!mod->hasAttr("seki.target")) {
+            mod.emitError("seki-assign-memory-spaces requires "
+                          "--seki-attach-target to run first");
+            return signalPassFailure();
+        }
         mlir::seki::SekiTargetInfo info(mod);
         int64_t scratchpadBytes = info.getScratchpadBytes();
         int64_t dmaAlignment = info.getDMAAlignment();
