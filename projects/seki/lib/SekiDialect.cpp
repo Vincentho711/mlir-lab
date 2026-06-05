@@ -1,5 +1,6 @@
 #include "seki/SekiDialect.h"
 #include "seki/SekiAttrs.h"
+#include "seki/SekiOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -16,6 +17,7 @@ void SekiDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "seki/SekiAttrs.cpp.inc"
     >();
+    addOperations<ReluOp>();
 }
 
 } // namespace mlir::seki

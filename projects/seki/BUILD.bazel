@@ -11,6 +11,16 @@ td_library(
     ]
 )
 
+td_library(
+    name = "SekiOpsTdFiles",
+    srcs = ["include/seki/SekiOps.td"],
+    includes = ["include"],
+    deps = [
+        ":SekiDialectTdFiles",
+        "@llvm-project//mlir:SideEffectInterfacesTdFiles",
+    ]
+)
+
 # tblgen codegen
 gentbl_cc_library(
     name = "SekiDialectIncGen",
@@ -25,26 +35,41 @@ gentbl_cc_library(
     deps = [":SekiDialectTdFiles"],
 )
 
+gentbl_cc_library(
+    name = "SekiOpsIncGen",
+    tbl_outs = [
+        (["--gen-op-decls"], "include/seki/SekiOps.h.inc"),
+        (["--gen-op-defs"], "include/seki/SekiOps.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki/SekiOps.td",
+    deps = [":SekiOpsTdFiles"],
+)
+
 # C++ dialect library
 cc_library(
     name = "SekiDialect",
     srcs = [
         "lib/SekiDialect.cpp",
         "lib/SekiAttrs.cpp",
+        "lib/SekiOps.cpp",
         "lib/SekiTargetInfo.cpp",
         "lib/SekiTargets.cpp",
     ],
     hdrs = [
         "include/seki/SekiDialect.h",
         "include/seki/SekiAttrs.h",
+        "include/seki/SekiOps.h",
         "include/seki/SekiTargetInfo.h",
         "include/seki/SekiTargets.h"
     ],
     includes = ["include"],
     deps = [
         ":SekiDialectIncGen",
+        ":SekiOpsIncGen",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:SideEffectInterfaces",
     ],
     visibility = ["//visibility:public"],
 
