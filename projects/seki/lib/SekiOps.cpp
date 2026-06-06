@@ -8,11 +8,12 @@
 
 namespace mlir::seki {
 
-mlir::LogicalResult ReluOp::verify(){
+mlir::LogicalResult ReluOp::verify() {
     auto inputType = mlir::cast<mlir::TensorType>(getInput().getType());
     if (!mlir::isa<mlir::FloatType>(inputType.getElementType()))
         return emitOpError("requires floating-point element type, got ")
-            << inputType.getElementType();
+               << inputType.getElementType();
     return mlir::success();
-  }
 }
+
+} // namespace mlir::seki
