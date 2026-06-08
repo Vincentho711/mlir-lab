@@ -4,6 +4,7 @@
 include "seki/SekiDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/DestinationStyleOpInterface.td"
 
 //===-----------------------------------------------===//
 // Seki Op base class
@@ -20,6 +21,21 @@ def Seki_ReluOp : SekiOp<"relu", [Pure, SameOperandsAndResultType]> {
     let arguments = (ins AnyTensor:$input);
     let results = (outs AnyTensor:$output);
     let assemblyFormat = "$input attr-dict `:` type($input)";
+    let hasVerifier = 1;
+}
+
+def Seki_MatmulOp : SekiOp<"matmul", [DeclareOpInterfaceMethods<DestinationStyleOpInterface>, AllTypesMatch<["C", "result"]>]> {
+    let summary = "Matrix multiply-accumulate: C_out = A * B + C_in";
+    let arguments = (ins
+        AnyRankedTensor:$A,
+        AnyRankedTensor:$B,
+        AnyRankedTensor:$C
+    );
+    let results = (outs AnyRankedTensor:$result);
+    let assemblyFormat = [{
+        `ins` `(` $A `,` $B `:` type($A) `,` type($B) `)`
+        `outs` `(` $C `:` type($C) `)` attr-dict `->` type($result)
+    }];
     let hasVerifier = 1;
 }
 #endif // SEKI_OPS_TD

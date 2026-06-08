@@ -19,6 +19,7 @@ td_library(
         ":SekiDialectTdFiles",
         "@llvm-project//mlir:SideEffectInterfacesTdFiles",
         "@llvm-project//mlir:InferTypeOpInterfaceTdFiles",
+        "@llvm-project//mlir:DestinationStyleOpInterfaceTdFiles",
     ]
 )
 
@@ -72,6 +73,7 @@ cc_library(
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:SideEffectInterfaces",
         "@llvm-project//mlir:InferTypeOpInterface",
+        "@llvm-project//mlir:DestinationStyleOpInterface",
     ],
     visibility = ["//visibility:public"],
 

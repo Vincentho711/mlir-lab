@@ -18,6 +18,7 @@ void SekiDialect::initialize() {
 #include "seki/SekiAttrs.cpp.inc"
     >();
     addOperations<ReluOp>();
+    addOperations<MatmulOp>();
 }
 
 } // namespace mlir::seki
