@@ -98,6 +98,94 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+# seki_hw td sources
+td_library(
+    name = "SekiHwDialectTdFiles",
+    srcs = ["include/seki_hw/SekiHwDialect.td"],
+    includes = ["include"],
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles"
+    ]
+)
+
+td_library(
+    name = "SekiHwTypesTdFiles",
+    srcs = ["include/seki_hw/SekiHwTypes.td"],
+    includes = ["include"],
+    deps = [
+        ":SekiHwDialectTdFiles"
+    ]
+)
+
+td_library(
+    name = "SekiHwOpsTdFiles",
+    srcs = ["include/seki_hw/SekiHwOps.td"],
+    includes = ["include"],
+    deps = [
+        ":SekiHwDialectTdFiles",
+        ":SekiHwTypesTdFiles",
+        "@llvm-project//mlir:SideEffectInterfacesTdFiles",
+    ]
+)
+
+# seki_hw tblgen codegen
+gentbl_cc_library(
+    name = "SekiHwDialectIncGen",
+    tbl_outs = [
+        (["--gen-dialect-decls", "--dialect=seki_hw"], "include/seki_hw/SekiHwDialect.h.inc"),
+        (["--gen-dialect-defs", "--dialect=seki_hw"], "include/seki_hw/SekiHwDialect.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki_hw/SekiHwOps.td",
+    deps = [":SekiHwOpsTdFiles"]
+)
+
+gentbl_cc_library(
+    name = "SekiHwTypesIncGen",
+    tbl_outs = [
+        (["--gen-typedef-decls", "--typedefs-dialect=seki_hw"], "include/seki_hw/SekiHwTypes.h.inc"),
+        (["--gen-typedef-defs", "--typedefs-dialect=seki_hw"], "include/seki_hw/SekiHwTypes.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki_hw/SekiHwTypes.td",
+    deps = [":SekiHwTypesTdFiles"]
+)
+
+gentbl_cc_library(
+    name = "SekiHwOpsIncGen",
+    tbl_outs = [
+        (["--gen-dialect-decls", "--dialect=seki_hw"], "include/seki_hw/SekiHwOps.h.inc"),
+        (["--gen-dialect-defs", "--dialect=seki_hw"], "include/seki_hw/SekiHwOps.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki_hw/SekiHwOps.td",
+    deps = [":SekiHwOpsTdFiles"]
+)
+
+cc_library(
+    name = "SekiHwDialect",
+    srcs = [
+        "lib/SekiHwDialect.cpp",
+        "lib/SekiHwTypes.cpp",
+        "lib/SekiHwOps.cpp"
+    ],
+    hdrs = [
+        "include/seki_hw/SekiHwDialect.h",
+        "include/seki_hw/SekiHwTypes.h",
+        "include/seki_hw/SekiHwOps.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":SekiHwDialectIncGen",
+        ":SekiHwTypesIncGen",
+        ":SekiHwOpsIncGen",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:SideEffectInterfaces",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 # seki-opt tool
 cc_binary(
     name = "seki-opt",
@@ -105,6 +193,7 @@ cc_binary(
     deps = [
         ":SekiDialect",
         ":SekiPasses",
+        ":SekiHwDialect",
         "@llvm-project//mlir:MlirOptLib",
         "@llvm-project//mlir:RegisterAllDialects",
         "@llvm-project//mlir:RegisterAllPasses"
