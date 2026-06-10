@@ -15,8 +15,8 @@ namespace mlir::seki_hw {
 void SekiHwDialect::initialize() {
     addTypes<
 #define GET_TYPEDEF_LIST
-  #include "seki_hw/SekiHwTypes.cpp.inc"
-  >();
+    #include "seki_hw/SekiHwTypes.cpp.inc"
+    >();
 }
 
 } // namespace mlir::seki_hw

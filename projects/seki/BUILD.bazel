@@ -136,8 +136,8 @@ gentbl_cc_library(
         (["--gen-dialect-defs", "--dialect=seki_hw"], "include/seki_hw/SekiHwDialect.cpp.inc"),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "include/seki_hw/SekiHwOps.td",
-    deps = [":SekiHwOpsTdFiles"]
+    td_file = "include/seki_hw/SekiHwDialect.td",
+    deps = [":SekiHwDialectTdFiles"]
 )
 
 gentbl_cc_library(
@@ -154,8 +154,8 @@ gentbl_cc_library(
 gentbl_cc_library(
     name = "SekiHwOpsIncGen",
     tbl_outs = [
-        (["--gen-dialect-decls", "--dialect=seki_hw"], "include/seki_hw/SekiHwOps.h.inc"),
-        (["--gen-dialect-defs", "--dialect=seki_hw"], "include/seki_hw/SekiHwOps.cpp.inc"),
+        (["--gen-op-decls"], "include/seki_hw/SekiHwOps.h.inc"),
+        (["--gen-op-defs"], "include/seki_hw/SekiHwOps.cpp.inc"),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "include/seki_hw/SekiHwOps.td",
