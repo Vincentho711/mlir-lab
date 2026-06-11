@@ -1,0 +1,12 @@
+load("//bazel:lit.bzl", "glob_lit_tests")
+
+filegroup(
+    name = "test_data",
+    srcs = glob(["data/*.mlir"]),
+    testonly = True,
+)
+
+glob_lit_tests(
+    tools = ["//projects/seki:seki-opt"],
+    data = [":test_data"],
+)
