@@ -15,14 +15,14 @@ func.func @small_buffer_promoted(
     func.return
 }
 
-// Case 2 : buffer exceeds scratchpad (2164192 bytes > 262144 bytes) -> not promoted
+// Case 2 : buffer exceeds scratchpad (8396800 bytes > 8388608 bytes) -> not promoted
 // CHECK-LABEL: func.func @too_large_stays_dram
-// CHECK: memref.alloc() : memref<512x129xf32>
-// CHECK-NOT: memref<512x129xf32, 1>
+// CHECK: memref.alloc() : memref<2048x1025xf32>
+// CHECK-NOT: memref<2048x1025xf32, 1>
 // CHECK: return
-func.func @too_large_stays_dram(%out : memref<512x129xf32>) {
-    %Y = memref.alloc() : memref<512x129xf32>
-    memref.copy %Y, %out : memref<512x129xf32> to memref<512x129xf32>
+func.func @too_large_stays_dram(%out : memref<2048x1025xf32>) {
+    %Y = memref.alloc() : memref<2048x1025xf32>
+    memref.copy %Y, %out : memref<2048x1025xf32> to memref<2048x1025xf32>
     func.return
 }
 

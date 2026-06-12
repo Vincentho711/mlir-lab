@@ -38,12 +38,42 @@ def SkiMemoryConfigAttr : SekiAttr<"SekiMemoryConfig", "memory_config"> {
 }
 
 //===-----------------------------------------------===//
+// Compute subsystem configuration
+//===-----------------------------------------------===//
+def SekiComputeConfigAttr : SekiAttr<"SekiComputeConfig", "compute_config"> {
+    let summary = "Seki compute subsystem hardware configuration";
+    let parameters = (ins
+        "int64_t":$macArrayRows,
+        "int64_t":$macArrayCols,
+        "int64_t":$computeUnits,
+        "int64_t":$vectorRegisterFileBytes
+    );
+    let assemblyFormat = "`<` struct(params) `>`";
+    let genVerifyDecl = 1;
+}
+
+//===-----------------------------------------------===//
+// ISA configuration
+//===-----------------------------------------------===//
+def SekiISAConfigAttr : SekiAttr<"SekiISAConfig", "isa_config"> {
+    let summary = "Seki ISA configuration";
+    let parameters = (ins
+        "int64_t":$isaVersion,
+        "int64_t":$maxTileId
+    );
+    let assemblyFormat = "`<` struct(params) `>`";
+    let genVerifyDecl = 1;
+}
+
+//===-----------------------------------------------===//
 // Top-level hardware target
 //===-----------------------------------------------===//
 def SekiTargetAttr : SekiAttr<"SekiTarget", "target"> {
-    let summary = "Seki hardware target description attacted to a module";
+    let summary = "Seki hardware target description attached to a module";
     let parameters = (ins
-        "::mlir::seki::SekiMemoryConfigAttr":$memory
+        "::mlir::seki::SekiMemoryConfigAttr":$memory,
+        "::mlir::seki::SekiComputeConfigAttr":$compute,
+        "::mlir::seki::SekiISAConfigAttr":$isa
     );
     let assemblyFormat = "`<` struct(params) `>`";
 }
