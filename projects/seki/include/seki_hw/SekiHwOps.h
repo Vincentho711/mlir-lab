@@ -3,8 +3,11 @@
 
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Bytecode/BytecodeOpInterface.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "seki_hw/SekiHwDialect.h"
 #include "seki_hw/SekiHwTypes.h"
+#include "seki_hw/SekiHwAttrs.h"
 
 #define GET_OP_CLASSES
 #include "seki_hw/SekiHwOps.h.inc"
