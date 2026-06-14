@@ -16,10 +16,10 @@ func.func @tile_types(
 
 // CHECK-LABEL: func.func @vec_types
 func.func @vec_types(
-  %a: !seki_hw.vec<f32, 64>,
-  %b: !seki_hw.vec<bf16, 128>
+  %a: !seki_hw.vec<f32>,
+  %b: !seki_hw.vec<bf16>
 ) {
-    // CHECK: !seki_hw.vec<f32, 64>
-    // CHECK: !seki_hw.vec<bf16, 128>
+    // CHECK: !seki_hw.vec<f32>
+    // CHECK: !seki_hw.vec<bf16>
     return
 }

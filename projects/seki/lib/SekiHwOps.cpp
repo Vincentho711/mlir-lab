@@ -36,10 +36,11 @@ LogicalResult TileSplatOp::verify() {
 }
 
 LogicalResult TileReduceVecOp::verify() {
-    auto srcElem = cast<TileType>(getResult().getType()).getElementType();
+    auto srcElem = cast<TileType>(getSrc().getType()).getElementType();
     auto resType = cast<VecType>(getResult().getType());
     if (srcElem != resType.getElementType())
         return emitOpError("src tile and result vec must have the same element type");
+    return success();
 }
 
 LogicalResult VecBroadcastTileOp::verify() {

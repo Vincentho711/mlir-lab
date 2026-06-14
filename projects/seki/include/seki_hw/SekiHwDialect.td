@@ -12,6 +12,7 @@ def SekiHwDialect : Dialect {
     let cppNamespace = "::mlir::seki_hw";
     let summary = "Seki hardware ISA dialect - tile-level RISC ops mapping to hardware instructions";
     let useDefaultTypePrinterParser = 1;
+    let useDefaultAttributePrinterParser = 1;
 }
 
 //===-----------------------------------------------===//

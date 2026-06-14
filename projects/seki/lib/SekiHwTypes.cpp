@@ -15,14 +15,10 @@ mlir::LogicalResult TileType::verify(
 
 mlir::LogicalResult VecType::verify(
     llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
-    mlir::Type elementType,
-    int64_t numElements) {
+    mlir::Type elementType) {
     if (!elementType.isF32() && !elementType.isBF16())
         return emitError() << "vec element type must be f32 or bf16; got "
                            << elementType;
-    if (numElements <= 0)
-        return emitError() << "vec numElements must be positive; got "
-                           << numElements;
     return mlir::success();
 }
 

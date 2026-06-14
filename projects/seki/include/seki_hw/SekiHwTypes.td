@@ -20,8 +20,8 @@ def SekiHw_TileType : SekiHwType<"Tile", "tile"> {
 //===-----------------------------------------------===//
 def SekiHw_VecType : SekiHwType<"Vec", "vec"> {
     let summary = "512-byte vector register file value";
-    let parameters = (ins "::mlir::Type":$elementType, "int64_t":$numElements);
-    let assemblyFormat = "`<` $elementType `,` $numElements `>`";
+    let parameters = (ins "::mlir::Type":$elementType);
+    let assemblyFormat = "`<` $elementType `>`";
     let genVerifyDecl = 1;
 }
 
