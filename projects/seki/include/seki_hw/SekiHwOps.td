@@ -4,6 +4,7 @@
 include "seki_hw/SekiHwDialect.td"
 include "seki_hw/SekiHwTypes.td"
 include "seki_hw/SekiHwAttrs.td"
+include "seki_hw/SekiHwInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 
@@ -63,7 +64,8 @@ def SekiHw_MatmulOp : SekiHwOps<"matmul", [Pure]> {
 // seki_hw.tile_ew_unary<fn> - unary elementwise: tile<T> -> tile<T>
 // %out = seki_hw.tile_ew_unary<relu> %src : !seki_hw.tile<f32>
 //===-----------------------------------------------===//
-def SekiHw_TileEwUnaryOp: SekiHwOps<"tile_ew_unary", [Pure, SameOperandsAndResultType]> {
+def SekiHw_TileEwUnaryOp: SekiHwOps<"tile_ew_unary",
+    [Pure, SameOperandsAndResultType, SekiTileEwOpInterface]> {
     let summary = "Unary elementwise op on a tile";
     let arguments = (ins SekiHw_UnaryFnAttr:$fn, SekiHw_TileType:$src);
     let results = (outs SekiHw_TileType:$result);
@@ -74,7 +76,8 @@ def SekiHw_TileEwUnaryOp: SekiHwOps<"tile_ew_unary", [Pure, SameOperandsAndResul
 // seki_hw.tile_ew_binary<fn> - binary elementwise: tile<T> x tile<T> -> tile<T>
 // %out = seki_hw.tile_ew_binary<add> %lhs, %rhs : !seki_hw.tile<f32>, !seki_hw.tile<f32>
 //===-----------------------------------------------===//
-def SekiHw_TileEwBinaryOp : SekiHwOps<"tile_ew_binary", [Pure, SameOperandsAndResultType]> {
+def SekiHw_TileEwBinaryOp : SekiHwOps<"tile_ew_binary",
+    [Pure, SameOperandsAndResultType, SekiTileEwOpInterface]> {
     let summary = "Binary elementwise op on tiles";
     let arguments = (ins SekiHw_BinaryFnAttr:$fn, SekiHw_TileType:$lhs, SekiHw_TileType:$rhs);
     let results = (outs SekiHw_TileType:$result);

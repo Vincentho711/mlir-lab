@@ -12,6 +12,16 @@ td_library(
 )
 
 td_library(
+    name = "SekiAttrsTdFiles",
+    srcs = ["include/seki/SekiAttrs.td"],
+    includes = ["include"],
+    deps = [
+        ":SekiDialectTdFiles",
+        "@llvm-project//mlir:OpBaseTdFiles",
+    ]
+)
+
+td_library(
     name = "SekiOpsTdFiles",
     srcs = ["include/seki/SekiOps.td"],
     includes = ["include"],
@@ -29,12 +39,35 @@ gentbl_cc_library(
     tbl_outs = [
         (["--gen-dialect-decls", "--dialect=seki"], "include/seki/SekiDialect.h.inc"),
         (["--gen-dialect-defs", "--dialect=seki"], "include/seki/SekiDialect.cpp.inc"),
-        (["--gen-attrdef-decls", "--attrdefs-dialect=seki"], "include/seki/SekiAttrs.h.inc"),
-        (["--gen-attrdef-defs", "--attrdefs-dialect=seki"], "include/seki/SekiAttrs.cpp.inc"),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "include/seki/SekiDialect.td",
     deps = [":SekiDialectTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "SekiAttrsIncGen",
+    tbl_outs = [
+        (["--gen-enum-decls"], "include/seki/SekiEnums.h.inc"),
+        (["--gen-enum-defs"], "include/seki/SekiEnums.cpp.inc"),
+        (["--gen-attrdef-decls", "--attrdefs-dialect=seki"], "include/seki/SekiAttrs.h.inc"),
+        (["--gen-attrdef-defs", "--attrdefs-dialect=seki"], "include/seki/SekiAttrs.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki/SekiAttrs.td",
+    deps = [":SekiAttrsTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "SekiPassesIncGen",
+    tbl_outs = [
+        (["--gen-pass-decls", "--name=Seki"], "include/seki/SekiPasses.h.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki/SekiPasses.td",
+    deps = [
+        "@llvm-project//mlir:PassBaseTdFiles",
+    ],
 )
 
 gentbl_cc_library(
@@ -68,6 +101,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":SekiDialectIncGen",
+        ":SekiAttrsIncGen",
         ":SekiOpsIncGen",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Support",
@@ -86,8 +120,13 @@ cc_library(
         "lib/SekiPasses.cpp",
         "lib/MemorySpaceAssignmentPass.cpp"
     ],
+    hdrs = [
+        "include/seki/SekiPasses.h",
+    ],
+    includes = ["include"],
     deps = [
         ":SekiDialect",
+        ":SekiPassesIncGen",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:MemRefDialect",
         "@llvm-project//mlir:IR",
@@ -125,6 +164,7 @@ td_library(
         ":SekiHwDialectTdFiles",
         ":SekiHwTypesTdFiles",
         ":SekiHwAttrsTdFiles",
+        ":SekiHwInterfacesTdFiles",
         "@llvm-project//mlir:SideEffectInterfacesTdFiles",
         "@llvm-project//mlir:InferTypeOpInterfaceTdFiles",
     ]
@@ -138,6 +178,15 @@ td_library(
         ":SekiHwDialectTdFiles",
         "@llvm-project//mlir:OpBaseTdFiles",
     ]
+)
+
+td_library(
+    name = "SekiHwInterfacesTdFiles",
+    srcs = ["include/seki_hw/SekiHwInterfaces.td"],
+    includes = ["include"],
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles",
+    ],
 )
 
 # seki_hw tblgen codegen
@@ -187,6 +236,17 @@ gentbl_cc_library(
     deps = [":SekiHwAttrsTdFiles"],
 )
 
+gentbl_cc_library(
+    name = "SekiHwInterfacesIncGen",
+    tbl_outs = [
+        (["--gen-op-interface-decls"], "include/seki_hw/SekiHwInterfaces.h.inc"),
+        (["--gen-op-interface-defs"], "include/seki_hw/SekiHwInterfaces.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki_hw/SekiHwInterfaces.td",
+    deps = [":SekiHwInterfacesTdFiles"],
+)
+
 cc_library(
     name = "SekiHwDialect",
     srcs = [
@@ -194,12 +254,14 @@ cc_library(
         "lib/SekiHwTypes.cpp",
         "lib/SekiHwOps.cpp",
         "lib/SekiHwAttrs.cpp",
+        "lib/SekiHwInterfaces.cpp",
     ],
     hdrs = [
         "include/seki_hw/SekiHwDialect.h",
         "include/seki_hw/SekiHwTypes.h",
         "include/seki_hw/SekiHwOps.h",
         "include/seki_hw/SekiHwAttrs.h",
+        "include/seki_hw/SekiHwInterfaces.h",
     ],
     includes = ["include"],
     deps = [
@@ -207,6 +269,7 @@ cc_library(
         ":SekiHwTypesIncGen",
         ":SekiHwOpsIncGen",
         ":SekiHwAttrsIncGen",
+        ":SekiHwInterfacesIncGen",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:SideEffectInterfaces",

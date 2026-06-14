@@ -1,4 +1,4 @@
-// RUN: seki-opt --seki-target=seki-v1 --seki-attach-target %s | FileCheck %s
+// RUN: seki-opt '--seki-attach-target=seki-target=seki-v1' %s | FileCheck %s
 // Verify that --seki-attach-target loads the target file and attaches
 // #seki.target<...> to the module as an attribute
 

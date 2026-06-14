@@ -1,26 +1,17 @@
-#include "seki/SekiDialect.h"
+#include "seki/SekiPasses.h"
+#include "seki/SekiAttrs.h"
 #include "seki/SekiTargetInfo.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/Pass/Pass.h"
+
+#define GEN_PASS_DEF_MEMORYSPACEASSIGNMENTPASS
+#include "seki/SekiPasses.h.inc"
 
 namespace {
 
-struct MemorySpaceAssignmentPass : mlir::PassWrapper<MemorySpaceAssignmentPass, mlir::OperationPass<mlir::ModuleOp>> {
-    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MemorySpaceAssignmentPass)
+struct MemorySpaceAssignmentPass : impl::MemorySpaceAssignmentPassBase<MemorySpaceAssignmentPass> {
 
-    llvm::StringRef getArgument() const override {
-        return "seki-assign-memory-spaces";
-    }
-    llvm::StringRef getDescription() const override {
-        return "Promote scratchpad-sized memref.alloc ops to memory space 1";
-    }
-
-    void getDependentDialects(mlir::DialectRegistry &registry) const override {
-        registry.insert<mlir::seki::SekiDialect>();
-        registry.insert<mlir::memref::MemRefDialect>();
-    }
+    using MemorySpaceAssignmentPassBase::MemorySpaceAssignmentPassBase;
 
     void runOnOperation() override {
         // Instantiate the SekiTargetInfo object
@@ -37,11 +28,8 @@ struct MemorySpaceAssignmentPass : mlir::PassWrapper<MemorySpaceAssignmentPass, 
         int64_t dmaAlignment = info.getDMAAlignment();
 
         mlir::MLIRContext *ctx = mod.getContext();
-        // Build an MLIR attribute to represent the integer value 1 - the memory space for scratchpad
-        // Type descriptor
-        mlir::Type i64_type = mlir::IntegerType::get(ctx, 64);
-        // Create an attribute holding the value 1 with type i64
-        mlir::Attribute scratchpadSpace = mlir::IntegerAttr::get(i64_type, 1);
+        mlir::Attribute scratchpadSpace =
+            mlir::seki::MemorySpaceAttr::get(ctx, mlir::seki::MemorySpace::Scratchpad);
 
         // Depth-first traveral of the entire IR tree.
         // For every memref.alloc op anywhere inside the module, call this lambda with a typed handle to that op 
@@ -49,11 +37,11 @@ struct MemorySpaceAssignmentPass : mlir::PassWrapper<MemorySpaceAssignmentPass, 
         // It does not account for concurrent liveness, a proper bin-packing allocator with liveness analysis will be deferred. 
         mod.walk([&](mlir::memref::AllocOp alloc) {
             mlir::MemRefType type = alloc.getType();
-            // MemRefType encodes everything that appears between the angle brackets in memref<4x3xf32, 1>
+            // MemRefType encodes everything that appears between the angle brackets in memref<4x3xf32, #seki.memory_space<...>>
             // E.g. type.getShape() -> ArrayRef<int64_t>{4, 3}
-            // E.g. type.getElementType() -> f32 
+            // E.g. type.getElementType() -> DRAM/scratchpad
 
-            // If it returns nullptr, then it is default. If it returns 1, then it is IntegerAttr(i64,1) if scratchpad
+            // If it returns nullptr, then it is default 0 (DRAM).
             // If it is already defined with 1 (scratchpad), then no need to promote
             if (type.getMemorySpace()) return;
             // Check if it has dynamic shape like <?,?>
@@ -99,8 +87,8 @@ struct MemorySpaceAssignmentPass : mlir::PassWrapper<MemorySpaceAssignmentPass, 
 
 namespace mlir::seki {
 
-void registerMemorySpaceAssignmentPass() {
-    mlir::PassRegistration<MemorySpaceAssignmentPass>();
+std::unique_ptr<mlir::Pass> createMemorySpaceAssignmentPass() {
+    return std::make_unique<MemorySpaceAssignmentPass>();
 }
 
 } // namespace mlir::seki

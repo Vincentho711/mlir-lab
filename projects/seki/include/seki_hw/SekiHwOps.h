@@ -8,6 +8,7 @@
 #include "seki_hw/SekiHwDialect.h"
 #include "seki_hw/SekiHwTypes.h"
 #include "seki_hw/SekiHwAttrs.h"
+#include "seki_hw/SekiHwInterfaces.h"
 
 #define GET_OP_CLASSES
 #include "seki_hw/SekiHwOps.h.inc"

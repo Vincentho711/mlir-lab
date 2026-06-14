@@ -1,16 +1,13 @@
-#include "seki/SekiDialect.h"
+#include "seki/SekiPasses.h"
 #include "seki/SekiAttrs.h"
+#include "seki/SekiDialect.h"
 #include "seki/SekiTargets.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/AsmParser/AsmParser.h"
-#include "mlir/Pass/Pass.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-static llvm::cl::opt<std::string> sekiTargetOption(
-    "seki-target",
-    llvm::cl::desc("Seki hardware target: named key (e.g. seki-v1) "
-                   "or path to a .mlir attribute file"),
-    llvm::cl::init(""));
+#define GEN_PASS_DEF_SEKIATTACHTARGETPASS
+#include "seki/SekiPasses.h.inc"
 
 namespace {
 
@@ -20,23 +17,14 @@ static bool isFilePath(llvm::StringRef s) {
 }
 
 struct SekiAttachTargetPass
-    : mlir::PassWrapper<SekiAttachTargetPass,
-                        mlir::OperationPass<mlir::ModuleOp>> {
-    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SekiAttachTargetPass)
+    : impl::SekiAttachTargetPassBase<SekiAttachTargetPass> {
 
-    llvm::StringRef getArgument()    const override { return "seki-attach-target"; }
-    llvm::StringRef getDescription() const override {
-        return "Resolve --seki-target and attach #seki.target<...> to the module";
-    }
-
-    void getDependentDialects(mlir::DialectRegistry &registry) const override {
-        registry.insert<mlir::seki::SekiDialect>();
-    }
+    using SekiAttachTargetPassBase::SekiAttachTargetPassBase;
 
     void runOnOperation() override {
         mlir::ModuleOp mod = getOperation();
 
-        if (sekiTargetOption.empty()) {
+        if (target.empty()) {
             mod.emitError("--seki-target not set; "
                           "pass --seki-target=seki-v1 or a path to a .mlir file");
             return signalPassFailure();
@@ -44,24 +32,23 @@ struct SekiAttachTargetPass
 
         mlir::Attribute attr;
 
-        if (isFilePath(sekiTargetOption)) {
+        if (isFilePath(target)) {
             // External prototype target - load from file
-            auto buf = llvm::MemoryBuffer::getFile(sekiTargetOption);
+            auto buf = llvm::MemoryBuffer::getFile(target);
             if (!buf) {
-                mod.emitError("cannot open target file: ") << sekiTargetOption;
+                mod.emitError("cannot open target file: ") << target;
                 return signalPassFailure();
             }
             attr = mlir::parseAttribute((*buf)->getBuffer(), mod.getContext());
             if (!attr) {
-                mod.emitError("failed to parse target attribute from: ")
-                    << sekiTargetOption;
+                mod.emitError("failed to parse target attribute from: ") << target;
                 return signalPassFailure();
             }
         } else {
             // Built-in named target - construct via factory.
-            attr = mlir::seki::getBuiltinTarget(sekiTargetOption, mod.getContext());
+            attr = mlir::seki::getBuiltinTarget(target, mod.getContext());
             if (!attr) {
-                mod.emitError("unknown target '") << sekiTargetOption
+                mod.emitError("unknown target '") << target
                     << "'; known built-in targets: seki-v1";
                 return signalPassFailure();
             }
@@ -75,11 +62,8 @@ struct SekiAttachTargetPass
 
 namespace mlir::seki {
 
-void registerMemorySpaceAssignmentPass();
-
-void registerSekiPasses() {
-    mlir::PassRegistration<SekiAttachTargetPass>();
-    registerMemorySpaceAssignmentPass();
+std::unique_ptr<mlir::Pass> createSekiAttachTargetPass() {
+    return std::make_unique<SekiAttachTargetPass>();
 }
 
 } // namespace mlir::seki

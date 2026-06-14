@@ -2,6 +2,8 @@
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectImplementation.h"
 
+#include "seki/SekiEnums.cpp.inc"
+
 namespace mlir::seki {
 
 mlir::LogicalResult SekiMemoryConfigAttr::verify(
