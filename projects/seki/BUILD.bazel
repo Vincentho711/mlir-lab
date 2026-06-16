@@ -237,6 +237,18 @@ gentbl_cc_library(
 )
 
 gentbl_cc_library(
+    name = "SekiHwPassesIncGen",
+    tbl_outs = [
+        (["--gen-pass-decls", "--name=SekiHw"], "include/seki_hw/SekiHwPasses.h.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki_hw/SekiHwPasses.td",
+    deps = [
+        "@llvm-project//mlir:PassBaseTdFiles",
+    ],
+)
+
+gentbl_cc_library(
     name = "SekiHwInterfacesIncGen",
     tbl_outs = [
         (["--gen-op-interface-decls"], "include/seki_hw/SekiHwInterfaces.h.inc"),
@@ -245,6 +257,25 @@ gentbl_cc_library(
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "include/seki_hw/SekiHwInterfaces.td",
     deps = [":SekiHwInterfacesTdFiles"],
+)
+
+cc_library(
+    name = "SekiHwPasses",
+    srcs = [
+        "lib/DumpTileEwOpsPass.cpp",
+    ],
+    hdrs = [
+        "include/seki_hw/SekiHwPasses.h"
+    ],
+    includes = ["include"],
+    deps = [
+        ":SekiHwDialect",
+        ":SekiHwPassesIncGen",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -286,6 +317,7 @@ cc_binary(
         ":SekiDialect",
         ":SekiPasses",
         ":SekiHwDialect",
+        ":SekiHwPasses",
         "@llvm-project//mlir:MlirOptLib",
         "@llvm-project//mlir:RegisterAllDialects",
         "@llvm-project//mlir:RegisterAllPasses"

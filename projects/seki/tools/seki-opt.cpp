@@ -1,6 +1,7 @@
 #include "seki/SekiDialect.h"
 #include "seki/SekiPasses.h"
 #include "seki_hw/SekiHwDialect.h"
+#include "seki_hw/SekiHwPasses.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
@@ -12,6 +13,7 @@ int main(int argc, char **argv) {
     registry.insert<mlir::seki_hw::SekiHwDialect>();
     mlir::registerAllPasses();
     registerSekiPasses();
+    registerSekiHwPasses();
     return mlir::asMainReturnCode(
         mlir::MlirOptMain(argc, argv, "seki-opt", registry));
 }
