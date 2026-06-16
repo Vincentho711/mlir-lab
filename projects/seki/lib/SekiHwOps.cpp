@@ -51,4 +51,11 @@ LogicalResult VecBroadcastTileOp::verify() {
     return success();
 }
 
+LogicalResult VecSplatOp::verify() {
+    auto resultElem = cast<VecType>(getResult().getType()).getElementType();
+    if (getScalar().getType() != resultElem)
+        return emitOpError("scalar type must match vec element type");
+    return success();
+}
+
 } // namespace mlir::seki_hw

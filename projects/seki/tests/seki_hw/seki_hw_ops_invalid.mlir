@@ -39,3 +39,11 @@ func.func @tile_reduce_vec_type_mismatch(%src: !seki_hw.tile<f32>) -> !seki_hw.v
     %out = seki_hw.tile_reduce_vec<sum, rows> %src : !seki_hw.tile<f32> -> !seki_hw.vec<bf16>
     return %out : !seki_hw.vec<bf16>
 }
+
+// -----
+
+func.func @vec_splat_type_mismatch(%scalar: i8) -> !seki_hw.vec<f32> {
+    // expected-error@+1 {{scalar type must match vec element type}}
+    %out = seki_hw.vec_splat %scalar : i8 -> !seki_hw.vec<f32>
+    return %out : !seki_hw.vec<f32>
+}

@@ -120,4 +120,37 @@ def SekiHw_VecBroadcastTileOp : SekiHwOps<"vec_broadcast_tile", [Pure]> {
     let hasVerifier = 1;
 }
 
+//===-----------------------------------------------===//
+// seki_hw.vec_splat - fill vec register with scalar: T -> vec<T>
+// %vec = seki_hw.vec_splat %scalar : f32 -> !seki_hw.vec<f32>
+//===-----------------------------------------------===//
+def SekiHw_VecSplatOp : SekiHwOps<"vec_splat", [Pure]> {
+    let summary = "Fill a vec registser with a scalar value";
+    let arguments = (ins AnyType:$scalar);
+    let results = (outs SekiHw_VecType:$result);
+    let assemblyFormat = "$scalar attr-dict `:` type($scalar) `->` type($result)";
+    let hasVerifier = 1;
+}
+
+//===-----------------------------------------------===//
+// seki_hw.vec_ew_unary<fn> - unary elementwise on vec: vec<T> -> vec<T>
+// %vec = seki_hw.vec_ew_unary<relu> %src : !seki_hw.vec<f32>
+//===-----------------------------------------------===//
+def SekiHw_VecEwUnaryOp : SekiHwOps<"vec_ew_unary", [Pure, SameOperandsAndResultType, SekiVecEwOpInterface]> {
+    let summary = "Unary elementwise op on a vec register";
+    let arguments = (ins SekiHw_UnaryFnAttr:$fn, SekiHw_VecType:$src);
+    let results = (outs SekiHw_VecType:$result);
+    let assemblyFormat = "`<` $fn `>` $src attr-dict `:` type($result)";
+}
+
+//===-----------------------------------------------===//
+// seki_hw.vec_ew_binary<fn> - binary elementwise on vec: vec<T> x vec<T> -> vec<T>
+// %out = seki_hw.vec_ew_binary<add> %lhs, %rhs : !seki_hw.vec<f32>
+//===-----------------------------------------------===//
+def SekiHw_VecEwBinaryOp : SekiHwOps<"vec_ew_binary", [Pure, SameOperandsAndResultType, SekiVecEwOpInterface]> {
+    let summary = "Binary elementwise op on a vec registers";
+    let arguments = (ins SekiHw_BinaryFnAttr:$fn, SekiHw_VecType:$lhs, SekiHw_VecType:$rhs);
+    let results = (outs SekiHw_VecType:$result);
+    let assemblyFormat = "`<` $fn `>` $lhs `,` $rhs attr-dict `:` type($result)";
+}
 #endif // SEKI_HW_OPS_TD

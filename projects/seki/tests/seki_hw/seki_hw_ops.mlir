@@ -106,3 +106,24 @@ func.func @softmax_rowwise(%logits: !seki_hw.tile<f32>) -> !seki_hw.tile<f32> {
     // CHECK: tile_ew_binary< div>
     return %probs : !seki_hw.tile<f32>
 }
+
+// CHECK-LABEL: func.func @vec_splat
+func.func @vec_splat(%scalar: f32) -> !seki_hw.vec<f32> {
+    // CHECK: seki_hw.vec_splat
+    %v = seki_hw.vec_splat %scalar : f32 -> !seki_hw.vec<f32>
+    return %v : !seki_hw.vec<f32>
+}
+
+// CHECK-LABEL: func.func @vec_ew_unary_relu
+func.func @vec_ew_unary_relu(%src: !seki_hw.vec<f32>) -> !seki_hw.vec<f32> {
+    // CHECK: seki_hw.vec_ew_unary< relu>
+    %out = seki_hw.vec_ew_unary<relu> %src : !seki_hw.vec<f32>
+    return %out : !seki_hw.vec<f32>
+}
+
+// CHECK-LABEL: func.func @vec_ew_binary_max
+func.func @vec_ew_binary_max(%lhs: !seki_hw.vec<f32>, %rhs: !seki_hw.vec<f32>) -> !seki_hw.vec<f32> {
+    // CHECK: seki_hw.vec_ew_binary< max>
+    %out = seki_hw.vec_ew_binary<max> %lhs, %rhs : !seki_hw.vec<f32>
+    return %out : !seki_hw.vec<f32>
+}
