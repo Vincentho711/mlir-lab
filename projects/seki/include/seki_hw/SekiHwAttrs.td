@@ -81,5 +81,19 @@ def SekiHw_TileAxisAttr: EnumAttr<SekiHwDialect, SekiHw_TileAxis, "tile_axis"> {
     let assemblyFormat = "$value";
 }
 
+//===-------------------------------------------------------------===//
+// TernaryFn - three-input elementwise : tile_ew_ternary
+//===-------------------------------------------------------------===//
+def SekiHw_TernaryFn_fma : I32EnumAttrCase<"fma", 0, "fma">;
+
+def SekiHw_TernaryFn : I32EnumAttr<"TernaryFn", "ternary elementwise function",
+    [SekiHw_TernaryFn_fma]> {
+    let cppNamespace = "::mlir::seki_hw";
+    let genSpecializedAttr = 0;
+}
+
+def SekiHw_TernaryFnAttr : EnumAttr<SekiHwDialect, SekiHw_TernaryFn, "ternary_fn"> {
+    let assemblyFormat = "$value";
+}
 
 #endif // SEKI_HW_ATTRS_TD
