@@ -65,7 +65,7 @@ def SekiHw_MatmulOp : SekiHwOps<"matmul", [Pure]> {
 // %out = seki_hw.tile_ew_unary<relu> %src : !seki_hw.tile<f32>
 //===-----------------------------------------------===//
 def SekiHw_TileEwUnaryOp: SekiHwOps<"tile_ew_unary",
-    [Pure, SameOperandsAndResultType, SekiTileEwOpInterface]> {
+    [Pure, SameOperandsAndResultType, SekiTileEwFnOpInterface]> {
     let summary = "Unary elementwise op on a tile";
     let arguments = (ins SekiHw_UnaryFnAttr:$fn, SekiHw_TileType:$src);
     let results = (outs SekiHw_TileType:$result);
@@ -77,11 +77,51 @@ def SekiHw_TileEwUnaryOp: SekiHwOps<"tile_ew_unary",
 // %out = seki_hw.tile_ew_binary<add> %lhs, %rhs : !seki_hw.tile<f32>, !seki_hw.tile<f32>
 //===-----------------------------------------------===//
 def SekiHw_TileEwBinaryOp : SekiHwOps<"tile_ew_binary",
-    [Pure, SameOperandsAndResultType, SekiTileEwOpInterface]> {
+    [Pure, SameOperandsAndResultType, SekiTileEwFnOpInterface]> {
     let summary = "Binary elementwise op on tiles";
     let arguments = (ins SekiHw_BinaryFnAttr:$fn, SekiHw_TileType:$lhs, SekiHw_TileType:$rhs);
     let results = (outs SekiHw_TileType:$result);
     let assemblyFormat = "`<` $fn `>` $lhs `,` $rhs attr-dict `:` type($result)";
+}
+
+//===-----------------------------------------------===//
+// seki_hw.tile_ew_ternary<fn> - ternary elementwise: tile x tile x tile -> tile
+// %out = seki_hw.tile_ew_ternary<fma> %a, %b, %c : !seki_hw.tile<f32>
+//===-----------------------------------------------===//
+def SekiHw_TileEwTernaryOp : SekiHwOps<"tile_ew_ternary", [Pure, SameOperandsAndResultType]> {
+    let summary = "Ternary elementwise op on tile (e.g. fma: a*b + c)";
+    let arguments = (ins SekiHw_TernaryFnAttr:$fn,
+                         SekiHw_TileType:$a,
+                         SekiHw_TileType:$b,
+                         SekiHw_TileType:$c);
+    let results = (outs SekiHw_TileType:$result);
+    let assemblyFormat = "`<` $fn `>` $a `,` $b `,` $c attr-dict `:` type($result)";
+}
+
+//===-----------------------------------------------===//
+// seki_hw.tile_ew_scalar<fn> - tile x scalar elementwise: tile x T -> tile
+// %out = seki_hw.tile_ew_scalar<mul> %tile, %scalar : !seki_hw.tile<f32>, f32
+//===-----------------------------------------------===//
+def SekiHw_TileEwScalarOp : SekiHwOps<"tile_ew_scalar", [Pure, AllTypesMatch<["tile", "result"]>]> {
+    let summary = "Elementwise op between a tile and a scalar (e.g. scale, bias shift)";
+    let arguments = (ins SekiHw_BinaryFnAttr:$fn,
+                         SekiHw_TileType:$tile,
+                         AnyType:$scalar);
+    let results = (outs SekiHw_TileType:$result);
+    let assemblyFormat = "`<` $fn `>` $tile `,` $scalar attr-dict `:` type($tile) `,` type($scalar)";
+    let hasVerifier = 1;
+}
+
+//===-----------------------------------------------===//
+// seki_hw.tile_reduce_scalar<fn> - full tile reduction: tile -> scalar
+// %scalar = seki_hw.tile_reduce_scalar<sum> %src : !seki_hw.tile<f32> -> f32
+//===-----------------------------------------------===//
+def SekiHw_TileReduceScalarOp : SekiHwOps<"tile_reduce_scalar", [Pure]> {
+    let summary = "Reduce all elements of a tile to a single scalar";
+    let arguments = (ins SekiHw_ReduceFnAttr:$fn, SekiHw_TileType:$src);
+    let results = (outs AnyType:$result);
+    let assemblyFormat = "`<` $fn `>` $src attr-dict `:` type($src) `->` type($result)";
+    let hasVerifier = 1;
 }
 
 //===-----------------------------------------------===//
@@ -136,7 +176,7 @@ def SekiHw_VecSplatOp : SekiHwOps<"vec_splat", [Pure]> {
 // seki_hw.vec_ew_unary<fn> - unary elementwise on vec: vec<T> -> vec<T>
 // %vec = seki_hw.vec_ew_unary<relu> %src : !seki_hw.vec<f32>
 //===-----------------------------------------------===//
-def SekiHw_VecEwUnaryOp : SekiHwOps<"vec_ew_unary", [Pure, SameOperandsAndResultType, SekiVecEwOpInterface]> {
+def SekiHw_VecEwUnaryOp : SekiHwOps<"vec_ew_unary", [Pure, SameOperandsAndResultType, SekiVecEwFnOpInterface]> {
     let summary = "Unary elementwise op on a vec register";
     let arguments = (ins SekiHw_UnaryFnAttr:$fn, SekiHw_VecType:$src);
     let results = (outs SekiHw_VecType:$result);
@@ -147,7 +187,7 @@ def SekiHw_VecEwUnaryOp : SekiHwOps<"vec_ew_unary", [Pure, SameOperandsAndResult
 // seki_hw.vec_ew_binary<fn> - binary elementwise on vec: vec<T> x vec<T> -> vec<T>
 // %out = seki_hw.vec_ew_binary<add> %lhs, %rhs : !seki_hw.vec<f32>
 //===-----------------------------------------------===//
-def SekiHw_VecEwBinaryOp : SekiHwOps<"vec_ew_binary", [Pure, SameOperandsAndResultType, SekiVecEwOpInterface]> {
+def SekiHw_VecEwBinaryOp : SekiHwOps<"vec_ew_binary", [Pure, SameOperandsAndResultType, SekiVecEwFnOpInterface]> {
     let summary = "Binary elementwise op on a vec registers";
     let arguments = (ins SekiHw_BinaryFnAttr:$fn, SekiHw_VecType:$lhs, SekiHw_VecType:$rhs);
     let results = (outs SekiHw_VecType:$result);

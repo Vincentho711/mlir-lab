@@ -3,10 +3,12 @@
 
 include "mlir/IR/OpBase.td"
 
-def SekiTileEwOpInterface : OpInterface<"SekiTileEwOpInterface"> {
+def SekiTileEwFnOpInterface : OpInterface<"SekiTileEwFnOpInterface"> {
     let description = [{
-        Interface implemented by all tile elementwise ops (tile_ew_unary, tile_ew_binary).
-        Allows passes to iterate uniformly over tile EW ops without switching on concrete op types.
+        Interface implemented by tile elementwise ops that expose a queryable fn attribute
+        (tile_ew_unary, tile_ew_binary). Allows passes to retrieve the fn attribute uniformly
+        without switching on concrete op types. Does not cover tile_ew_ternary or tile_ew_scalar
+        whose fn attributes belong to incompatible families.
     }];
     let cppNamespace = "::mlir::seki_hw";
     let methods = [
@@ -21,10 +23,11 @@ def SekiTileEwOpInterface : OpInterface<"SekiTileEwOpInterface"> {
     ];
 }
 
-def SekiVecEwOpInterface : OpInterface< "SekiVecEwOpInterface"> {
+def SekiVecEwFnOpInterface : OpInterface<"SekiVecEwFnOpInterface"> {
     let description = [{
-        Interface implemented by all vec elementwise ops (vec_ew_unary, vec_ew_binary).
-        Allows passes to iterate uniformly over vec EW ops without switching on concrete op types.
+        Interface implemented by vec elementwise ops that expose a queryable fn attribute
+        (vec_ew_unary, vec_ew_binary). Allows passes to retrieve the fn attribute uniformly
+        without switching on concrete op types.
     }];
     let cppNamespace = "::mlir::seki_hw";
     let methods = [

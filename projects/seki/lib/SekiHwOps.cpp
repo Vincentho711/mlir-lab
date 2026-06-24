@@ -58,4 +58,18 @@ LogicalResult VecSplatOp::verify() {
     return success();
 }
 
+LogicalResult TileEwScalarOp::verify() {
+    auto tileElementType = cast<TileType>(getTile().getType()).getElementType();
+    if (getScalar().getType() != tileElementType)
+        return emitOpError("scalar type must match tile element type");
+    return success();
+}
+
+LogicalResult TileReduceScalarOp::verify() {
+    auto tileElementType = cast<TileType>(getSrc().getType()).getElementType();
+    if (getResult().getType() != tileElementType)
+        return emitOpError("scalar type must match tile element type");
+    return success();
+}
+
 } // namespace mlir::seki_hw

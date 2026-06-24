@@ -127,3 +127,24 @@ func.func @vec_ew_binary_max(%lhs: !seki_hw.vec<f32>, %rhs: !seki_hw.vec<f32>) -
     %out = seki_hw.vec_ew_binary<max> %lhs, %rhs : !seki_hw.vec<f32>
     return %out : !seki_hw.vec<f32>
 }
+
+// CHECK-LABEL: func.func @tile_ew_ternary_fma
+func.func @tile_ew_ternary_fma(%a: !seki_hw.tile<f32>, %b: !seki_hw.tile<f32>, %c: !seki_hw.tile<f32>) -> !seki_hw.tile<f32> {
+    // CHECK: seki_hw.tile_ew_ternary< fma>
+    %out = seki_hw.tile_ew_ternary<fma> %a, %b, %c : !seki_hw.tile<f32>
+    return %out : !seki_hw.tile<f32>
+}
+
+// CHECK-LABEL: func.func @tile_ew_scalar_mul
+func.func @tile_ew_scalar_mul(%tile: !seki_hw.tile<f32>, %scale: f32) -> !seki_hw.tile<f32> {
+    // CHECK: seki_hw.tile_ew_scalar< mul>
+    %out = seki_hw.tile_ew_scalar<mul> %tile, %scale : !seki_hw.tile<f32>, f32
+    return %out : !seki_hw.tile<f32>
+}
+
+// CHECK-LABEL: func.func @tile_reduce_scalar_sum
+func.func @tile_reduce_scalar_sum(%src: !seki_hw.tile<f32>) -> f32 {
+    // CHECK: seki_hw.tile_reduce_scalar< sum>
+    %out = seki_hw.tile_reduce_scalar<sum> %src : !seki_hw.tile<f32> -> f32
+    return %out : f32
+}

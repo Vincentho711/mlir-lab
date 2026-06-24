@@ -14,7 +14,7 @@ struct DumpTileEwOpsPass : impl::DumpTileEwOpsPassBase<DumpTileEwOpsPass> {
     void runOnOperation() override {
         getOperation().walk([](mlir::Operation *op) {
             // Try to cast the op to see if it has SekiTileEwOpInterface
-            auto iface = mlir::dyn_cast<mlir::seki_hw::SekiTileEwOpInterface>(op);
+            auto iface = mlir::dyn_cast<mlir::seki_hw::SekiTileEwFnOpInterface>(op);
             // If not, simply return
             if (!iface)
                 return;
