@@ -15,8 +15,8 @@ def SekiHw_TileType : SekiHwType<"Tile", "tile"> {
 
 
 //===-----------------------------------------------===//
-// VecType - !seki_hw.vec<T, N>
-// 512-byte vector register file value. N = 128 for seki-v1.
+// VecType - !seki_hw.vec<T>
+// 2048-byte vector register file value. N = 128 for seki-v1.
 //===-----------------------------------------------===//
 def SekiHw_VecType : SekiHwType<"Vec", "vec"> {
     let summary = "512-byte vector register file value";

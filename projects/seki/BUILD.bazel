@@ -263,14 +263,17 @@ cc_library(
     name = "SekiHwPasses",
     srcs = [
         "lib/DumpTileEwOpsPass.cpp",
+        "lib/SekiHwVerifyTargetPass.cpp",
     ],
     hdrs = [
         "include/seki_hw/SekiHwPasses.h"
     ],
     includes = ["include"],
     deps = [
+        ":SekiDialect",
         ":SekiHwDialect",
         ":SekiHwPassesIncGen",
+        "@llvm-project//mlir:Analysis",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",

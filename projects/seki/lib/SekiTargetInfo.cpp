@@ -42,5 +42,6 @@ int64_t SekiTargetInfo::getVecRegisterCount(mlir::Type elementType) const {
 }
 int64_t SekiTargetInfo::getISAVersion()                const { return isaVersion; }
 int64_t SekiTargetInfo::getMaxTileId()                 const { return maxTileId; }
+int64_t SekiTargetInfo::getMaxTileSlots()              const { return maxTileId + 1; }
 
 } // namespace mlir::seki

@@ -26,6 +26,7 @@ public:
     // ISA
     int64_t getISAVersion() const;
     int64_t getMaxTileId() const;
+    int64_t getMaxTileSlots() const;
 
 private:
     int64_t scratchpadBytes, dramBytes, dmaAlignment, numScratchpadBanks;
