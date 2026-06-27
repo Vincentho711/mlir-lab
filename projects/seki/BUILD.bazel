@@ -118,7 +118,9 @@ cc_library(
     name = "SekiPasses",
     srcs = [
         "lib/SekiPasses.cpp",
-        "lib/MemorySpaceAssignmentPass.cpp"
+        "lib/MemorySpaceAssignmentPass.cpp",
+        "lib/SekiLowerToSekiHwPass.cpp",
+        "lib/SekiElementwiseLowering.cpp",
     ],
     hdrs = [
         "include/seki/SekiPasses.h",
@@ -126,6 +128,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":SekiDialect",
+        ":SekiHwDialect",
         ":SekiPassesIncGen",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:MemRefDialect",
@@ -133,6 +136,8 @@ cc_library(
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:AsmParser",
         "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:Transforms",
+        "@llvm-project//mlir:FuncTransforms",
     ],
     visibility = ["//visibility:public"],
 )

@@ -30,4 +30,17 @@ def MemorySpaceAssignmentPass : Pass<"seki-assign-memory-spaces", "::mlir::Modul
     ];
 
 }
+
+def SekiLowerToSekiHwPass : Pass<"seki-lower-to-seki-hw", "::mlir::func::FuncOp"> {
+    let summary = "Lower seki dialect ops to seki_hw dialect ops";
+    let description = [{
+        Converts seki dialect ops to their seki_hw equivalents using ConversionTarget + TypeConverter
+        to handle the tensor<MxNxT> -> !seki_hw.tile<T> type boundary.
+    }];
+    let dependentDialects = [
+        "::mlir::seki::SekiDialect",
+        "::mlir::seki_hw::SekiHwDialect",
+        "::mlir::func::FuncDialect"
+    ];
+}
 #endif // SEKI_PASSES_TD
