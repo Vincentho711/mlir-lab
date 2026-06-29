@@ -56,6 +56,13 @@ func.func @tile_ew_binary_add(%lhs: !seki_hw.tile<f32>, %rhs: !seki_hw.tile<f32>
     return %out : !seki_hw.tile<f32>
 }
 
+// CHECK-LABEL: func.func @tile_ew_binary_sub
+func.func @tile_ew_binary_sub(%lhs: !seki_hw.tile<f32>, %rhs: !seki_hw.tile<f32>) -> !seki_hw.tile<f32> {
+    // CHECK: seki_hw.tile_ew_binary< sub>
+    %out = seki_hw.tile_ew_binary<sub> %lhs, %rhs: !seki_hw.tile<f32>
+    return %out : !seki_hw.tile<f32>
+}
+
 // CHECK-LABEL: func.func @tile_splat
 func.func @tile_splat(%scalar: f32) -> !seki_hw.tile<f32> {
     // CHECK: seki_hw.tile_splat
@@ -74,6 +81,13 @@ func.func @tile_reduce_vec_rows(%src : !seki_hw.tile<f32>) -> !seki_hw.vec<f32> 
 func.func @vec_broadcast_tile_rows(%src: !seki_hw.vec<f32>) -> !seki_hw.tile<f32> {
     // CHECK: seki_hw.vec_broadcast_tile< rows>
     %out = seki_hw.vec_broadcast_tile<rows> %src: !seki_hw.vec<f32> -> !seki_hw.tile<f32>
+    return %out : !seki_hw.tile<f32>
+}
+
+// CHECK-LABEL: func.func @vec_broadcast_tile_cols
+func.func @vec_broadcast_tile_cols(%src: !seki_hw.vec<f32>) -> !seki_hw.tile<f32> {
+    // CHECK: seki_hw.vec_broadcast_tile< cols>
+    %out = seki_hw.vec_broadcast_tile<cols> %src: !seki_hw.vec<f32> -> !seki_hw.tile<f32>
     return %out : !seki_hw.tile<f32>
 }
 
