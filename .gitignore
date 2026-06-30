@@ -16,3 +16,6 @@ __pycache__/
 # Logs and scratch
 *.log
 tmp/
+
+# Plan documents (local only, not committed)
+plan/
