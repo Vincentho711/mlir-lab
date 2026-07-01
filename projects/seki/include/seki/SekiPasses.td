@@ -43,4 +43,13 @@ def SekiLowerToSekiHwPass : Pass<"seki-lower-to-seki-hw", "::mlir::func::FuncOp"
         "::mlir::func::FuncDialect"
     ];
 }
+
+def SekiVerifyStaticShapesPass : Pass<"seki-verify-static-shapes", "::mlir::func::FuncOp"> {
+    let summary = "Error on any dynamic tensor dimension; enforces static-shapes-only contract";
+    let description = [{
+        Walks all ops in the function. Emits an error for every tensor-typed operand or result whose shape
+        contains a dynamic dimension (?). Must run immediately after stablehlo-to-linalg and before --seki-lift-to-seki.
+    }];
+    let dependentDialects = ["::mlir::func::FuncDialect"];
+}
 #endif // SEKI_PASSES_TD
