@@ -24,6 +24,8 @@ SekiTargetInfo::SekiTargetInfo(mlir::ModuleOp mod) {
     SekiISAConfigAttr isa = target.getIsa();
     isaVersion = isa.getIsaVersion();
     maxTileId  = isa.getMaxTileId();
+    for (SekiSupportedOp op : isa.getSupportedOps())
+        supportedOps.insert(op);
 }
 
 int64_t SekiTargetInfo::getScratchpadBytes()           const { return scratchpadBytes; }
@@ -43,5 +45,6 @@ int64_t SekiTargetInfo::getVecRegisterCount(mlir::Type elementType) const {
 int64_t SekiTargetInfo::getISAVersion()                const { return isaVersion; }
 int64_t SekiTargetInfo::getMaxTileId()                 const { return maxTileId; }
 int64_t SekiTargetInfo::getMaxTileSlots()              const { return maxTileId + 1; }
+bool SekiTargetInfo::supportsOp(SekiSupportedOp op)    const { return supportedOps.count(op) > 0; }
 
 } // namespace mlir::seki

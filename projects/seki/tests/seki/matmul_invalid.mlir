@@ -5,7 +5,7 @@ func.func @bad_inner_dim(
     %B : tensor<9x16xf32>,
     %C : tensor<4x16xf32>
 ) -> tensor<4x16xf32> {
-    // expected-error @+1 {{inner dimensions must match: A columns (8) != B rows (9)}}
+    // expected-error @+1 {{inner dimensions must match: A K (8) != B K (9)}}
     %out = seki.matmul ins(%A, %B : tensor<4x8xf32>, tensor<9x16xf32>)
                        outs(%C : tensor<4x16xf32>) -> tensor<4x16xf32>
     return %out : tensor<4x16xf32>

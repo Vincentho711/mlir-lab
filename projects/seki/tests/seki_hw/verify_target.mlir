@@ -4,7 +4,7 @@
 module attributes {seki.target = #seki.target<
     memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
     compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 2, maxTileId = 127>
+    isa = #seki.isa_config<isaVersion = 2, maxTileId = 127, supported_ops = []>
 >} {}
 
 // -----
@@ -12,7 +12,7 @@ module attributes {seki.target = #seki.target<
 module attributes {seki.target = #seki.target<
     memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
     compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 1, maxTileId = 127>
+    isa = #seki.isa_config<isaVersion = 1, maxTileId = 127, supported_ops = []>
 >} {
     func.func @vec_ref_overflow(%c0: f32) -> !seki_hw.vec<f32> {
         %v0 = seki_hw.vec_splat %c0 : f32 -> !seki_hw.vec<f32>
@@ -36,7 +36,7 @@ module attributes {seki.target = #seki.target<
 module attributes {seki.target = #seki.target<
     memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
     compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 1, maxTileId = 1>
+    isa = #seki.isa_config<isaVersion = 1, maxTileId = 1, supported_ops = []>
 >} {
     func.func @tile_slot_overflow(%addr: i64) -> (f32, f32, f32) {
         %t0 = seki_hw.load %addr -> !seki_hw.tile<f32>
@@ -57,7 +57,7 @@ module attributes {seki.target = #seki.target<
 module attributes {seki.target = #seki.target<
     memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
     compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 1, maxTileId = 127>
+    isa = #seki.isa_config<isaVersion = 1, maxTileId = 127, supported_ops = []>
 >} {
     func.func @valid_vec(%c0: f32) -> !seki_hw.vec<f32> {
         %v0 = seki_hw.vec_splat %c0 : f32 -> !seki_hw.vec<f32>

@@ -1,7 +1,19 @@
 #include "seki/SekiTargets.h"
 #include "seki/SekiAttrs.h"
+#include "llvm/ADT/SmallVector.h"
 
 namespace mlir::seki {
+
+llvm::SmallVector<SekiSupportedOp> ops = {
+    SekiSupportedOp::Matmul,    SekiSupportedOp::BatchMatmul,
+    SekiSupportedOp::EwUnaryRelu,
+    SekiSupportedOp::EwBinaryAdd, SekiSupportedOp::EwBinarySub,
+    SekiSupportedOp::EwBinaryMul, SekiSupportedOp::EwBinaryDiv,
+    SekiSupportedOp::EwBinaryMax, SekiSupportedOp::EwBinaryMin,
+    SekiSupportedOp::ReduceSum,   SekiSupportedOp::ReduceMax, SekiSupportedOp::ReduceMin,
+    SekiSupportedOp::Broadcast,   SekiSupportedOp::Transpose,
+    SekiSupportedOp::Reshape,
+};
 
 static SekiTargetAttr buildSekiV1(MLIRContext *ctx) {
     auto mem = SekiMemoryConfigAttr::get(ctx,
@@ -15,8 +27,9 @@ static SekiTargetAttr buildSekiV1(MLIRContext *ctx) {
         /*computeUnits=*/             4,
         /*vectorRegisterFileBytes =*/ 2048);
     auto isa = SekiISAConfigAttr::get(ctx,
-        /*isaVersion=*/ 1,
-        /*maxTileId=*/  64);
+        /*isaVersion=*/   1,
+        /*maxTileId=*/    64,
+        /*supportedOps=*/ ops);
     return SekiTargetAttr::get(ctx, mem, compute, isa);
 }
 

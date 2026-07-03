@@ -16,10 +16,10 @@ module attributes {t = #seki.compute_config<macArrayRows = 128, macArrayCols = 1
 // -----
 
 // expected-error@+1 {{isa_version must be positive}}
-module attributes {t = #seki.isa_config<isaVersion = 0, maxTileId = 64>} {}
+module attributes {t = #seki.isa_config<isaVersion = 0, maxTileId = 64, supported_ops = []>} {}
 
 // -----
 
 // expected-error@+1 {{max_tile_id must be positive}}
-module attributes {t = #seki.isa_config<isaVersion = 1, maxTileId = -1>} {}
+module attributes {t = #seki.isa_config<isaVersion = 1, maxTileId = -1, supported_ops = []>} {}
 

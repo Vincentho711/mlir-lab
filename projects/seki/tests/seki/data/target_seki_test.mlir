@@ -13,6 +13,7 @@
     >,
     isa = #seki.isa_config<
         isaVersion = 1,
-        maxTileId = 64
+        maxTileId = 64,
+        supported_ops = []
     >
 >

@@ -27,10 +27,21 @@ td_library(
     includes = ["include"],
     deps = [
         ":SekiDialectTdFiles",
+        ":SekiAttrsTdFiles",
+        ":SekiInterfacesTdFiles",
         "@llvm-project//mlir:SideEffectInterfacesTdFiles",
         "@llvm-project//mlir:InferTypeOpInterfaceTdFiles",
         "@llvm-project//mlir:DestinationStyleOpInterfaceTdFiles",
     ]
+)
+
+td_library(
+    name = "SekiInterfacesTdFiles",
+    srcs = ["include/seki/SekiInterfaces.td"],
+    includes = ["include"],
+    deps = [
+        "@llvm-project//mlir:OpBaseTdFiles",
+    ],
 )
 
 # tblgen codegen
@@ -81,6 +92,17 @@ gentbl_cc_library(
     deps = [":SekiOpsTdFiles"],
 )
 
+gentbl_cc_library(
+    name = "SekiInterfacesIncGen",
+    tbl_outs = [
+        (["--gen-op-interface-decls"], "include/seki/SekiInterfaces.h.inc"),
+        (["--gen-op-interface-defs"], "include/seki/SekiInterfaces.cpp.inc"),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "include/seki/SekiInterfaces.td",
+    deps = [":SekiInterfacesTdFiles"],
+)
+
 # C++ dialect library
 cc_library(
     name = "SekiDialect",
@@ -90,22 +112,26 @@ cc_library(
         "lib/SekiOps.cpp",
         "lib/SekiTargetInfo.cpp",
         "lib/SekiTargets.cpp",
+        "lib/SekiInterfaces.cpp",
     ],
     hdrs = [
         "include/seki/SekiDialect.h",
         "include/seki/SekiAttrs.h",
         "include/seki/SekiOps.h",
         "include/seki/SekiTargetInfo.h",
-        "include/seki/SekiTargets.h"
+        "include/seki/SekiTargets.h",
+        "include/seki/SekiInterfaces.h",
     ],
     includes = ["include"],
     deps = [
         ":SekiDialectIncGen",
         ":SekiAttrsIncGen",
         ":SekiOpsIncGen",
+        ":SekiInterfacesIncGen",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:SideEffectInterfaces",
+        "@llvm-project//mlir:BytecodeOpInterface",
         "@llvm-project//mlir:InferTypeOpInterface",
         "@llvm-project//mlir:DestinationStyleOpInterface",
     ],

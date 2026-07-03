@@ -2,6 +2,8 @@
 #define SEKI_TARGET_INFO_H
 
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/DenseSet.h"
+#include "seki/SekiAttrs.h"
 
 namespace mlir::seki {
 
@@ -27,11 +29,13 @@ public:
     int64_t getISAVersion() const;
     int64_t getMaxTileId() const;
     int64_t getMaxTileSlots() const;
+    bool supportsOp(SekiSupportedOp op) const;
 
 private:
     int64_t scratchpadBytes, dramBytes, dmaAlignment, numScratchpadBanks;
     int64_t macArrayRows, macArrayCols, computeUnits, vectorRegisterFileBytes;
     int64_t isaVersion, maxTileId;
+    llvm::SmallDenseSet<SekiSupportedOp> supportedOps;
 };
 } // namespace mlir::seki
 #endif // SEKI_TARGET_INFO_H
