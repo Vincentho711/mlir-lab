@@ -21,6 +21,7 @@ def Seki_MemorySpace_Scratchpad : I32EnumAttrCase<"Scratchpad", 1, "scratchpad">
 def Seki_MemorySpace : I32EnumAttr<"MemorySpace", "seki memory space",
     [Seki_MemorySpace_DRAM, Seki_MemorySpace_Scratchpad]> {
     let cppNamespace = "::mlir::seki";
+    // Only generate the C++ enum, we pick the mnemonic and assemblyFormat by specifying our own Seki_MemorySpaceAttr
     let genSpecializedAttr = 0;
 }
 
@@ -87,6 +88,22 @@ def Seki_ReduceFnAttr : EnumAttr<SekiDialect, Seki_ReduceFn, "reduce_fn"> {
 }
 
 //===-----------------------------------------------===//
+// Axis — seki.extract<axis> / seki.update<axis>
+//===-----------------------------------------------===//
+def Seki_Axis_rows : I32EnumAttrCase<"rows", 0, "rows">;
+def Seki_Axis_cols : I32EnumAttrCase<"cols", 1, "cols">;
+
+def Seki_Axis : I32EnumAttr<"Axis", "tile axis (row-wise or column-wise)",
+    [Seki_Axis_rows, Seki_Axis_cols]> {
+    let cppNamespace = "::mlir::seki";
+    let genSpecializedAttr = 0;
+}
+
+def Seki_AxisAttr : EnumAttr<SekiDialect, Seki_Axis, "axis"> {
+    let assemblyFormat = "$value";
+}
+
+//===-----------------------------------------------===//
 // SekiSupportedOp — target capability list
 //===-----------------------------------------------===//
 def SekiSupportedOp_Matmul      : I32EnumAttrCase<"Matmul",      0,  "matmul">;
@@ -108,6 +125,8 @@ def SekiSupportedOp_ReduceMin   : I32EnumAttrCase<"ReduceMin",   15, "reduce_min
 def SekiSupportedOp_Broadcast   : I32EnumAttrCase<"Broadcast",   16, "broadcast">;
 def SekiSupportedOp_Transpose   : I32EnumAttrCase<"Transpose",   17, "transpose">;
 def SekiSupportedOp_Reshape     : I32EnumAttrCase<"Reshape",     18, "reshape">;
+def SekiSupportedOp_Extract     : I32EnumAttrCase<"Extract",     19, "extract">;
+def SekiSupportedOp_Update      : I32EnumAttrCase<"Update",      20, "update">;
 
 def Seki_SupportedOp : I32EnumAttr<"SekiSupportedOp",
     "seki compute op supported by target hardware",
@@ -121,7 +140,8 @@ def Seki_SupportedOp : I32EnumAttr<"SekiSupportedOp",
      SekiSupportedOp_ReduceSum,   SekiSupportedOp_ReduceMax,
      SekiSupportedOp_ReduceMin,
      SekiSupportedOp_Broadcast, SekiSupportedOp_Transpose,
-     SekiSupportedOp_Reshape]> {
+     SekiSupportedOp_Reshape,
+     SekiSupportedOp_Extract, SekiSupportedOp_Update]> {
     let cppNamespace = "::mlir::seki";
     let genSpecializedAttr = 0;
 }

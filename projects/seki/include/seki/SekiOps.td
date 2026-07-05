@@ -98,4 +98,21 @@ def Seki_ReshapeOp : SekiOp<"reshape", [Pure]> {
     let hasVerifier = 1;
 }
 
+def Seki_ExtractOp : SekiOp<"extract", [Pure]> {
+    let summary = "Extract a row or column from a 2D tensor as a 1D tensor";
+    let arguments = (ins Seki_AxisAttr:$axis, AnyRankedTensor:$input, Index:$idx);
+    let results = (outs AnyRankedTensor:$result);
+    let assemblyFormat = [{`<` $axis `>` $input `,` $idx attr-dict `:` type($input) `,` type($idx) `->` type($result)}];
+    let hasVerifier = 1;
+}
+
+def Seki_UpdateOp : SekiOp<"update", [Pure, AllTypesMatch<["dest", "result"]>]> {
+    let summary = "Write a 1D tensor into a row or column of a 2D tensor (destination-style)";
+    let arguments = (ins Seki_AxisAttr:$axis, AnyRankedTensor:$vec, Index:$idx, AnyRankedTensor:$dest);
+    let results = (outs AnyRankedTensor:$result);
+    let assemblyFormat = [{`<` $axis `>` $vec `,` $idx `outs` `(` $dest `:` type($dest) `)` 
+                           attr-dict `:` type($vec) `,` type($idx) `->` type($result)}];
+    let hasVerifier = 1;
+}
+
 #endif // SEKI_OPS_TD

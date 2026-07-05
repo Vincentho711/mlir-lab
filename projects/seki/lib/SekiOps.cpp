@@ -186,4 +186,50 @@ mlir::LogicalResult ReshapeOp::verify() {
 
 }
 
+mlir::LogicalResult ExtractOp::verify() {
+    auto input = mlir::cast<mlir::RankedTensorType>(getInput().getType());
+    auto result = mlir::cast<mlir::RankedTensorType>(getResult().getType());
+    if (input.getRank() != 2)
+        return emitOpError("input must be a 2-D tensor, got rank ") << input.getRank();
+    if (result.getRank() != 1)
+        return emitOpError("result must be a 1-D tensor, got rank ") << result.getRank();
+    if (input.getElementType() != result.getElementType())
+        return emitOpError("input and result element types must match");
+
+    bool isRows = (getAxis() == Axis::rows);
+    int64_t expectedSize = isRows ? input.getDimSize(1) : input.getDimSize(0);
+    int64_t actualSize = result.getDimSize(0);
+    bool expectedSizeIsDynamic = mlir::ShapedType::isDynamic(expectedSize);
+    bool actualSizeIsDynamic = mlir::ShapedType::isDynamic(actualSize);
+    if (!expectedSizeIsDynamic && !actualSizeIsDynamic
+        && expectedSize != actualSize)
+        return emitOpError("result size (") << actualSize << ") must match input " << (isRows ? "column": "row")
+                           << " count (" << expectedSize << ")";
+
+    return mlir::success();
+}
+
+mlir::LogicalResult UpdateOp::verify() {
+    auto vec = mlir::cast<mlir::RankedTensorType>(getVec().getType());
+    auto dest = mlir::cast<mlir::RankedTensorType>(getDest().getType());
+
+    if (dest.getRank() != 2)
+        return emitOpError("dest must be a 2-D tensor, got rank ") << dest.getRank();
+    if (vec.getRank() != 1)
+        return emitOpError("vec must be a 1-D tensor, got rank ") << vec.getRank();
+    if (vec.getElementType() != dest.getElementType())
+        return emitOpError("vec and dest element types must match");
+
+    bool isRows = (getAxis() == Axis::rows);
+    int64_t expectedSize = isRows ? dest.getDimSize(1) : dest.getDimSize(0);
+    int64_t actualSize = vec.getDimSize(0);
+    bool expectedSizeIsDynamic = mlir::ShapedType::isDynamic(expectedSize);
+    bool actualSizeIsDynamic = mlir::ShapedType::isDynamic(actualSize);
+    if (!expectedSizeIsDynamic && !actualSizeIsDynamic
+        && expectedSize != actualSize)
+        return emitOpError("vec size (") << actualSize << ") must match dest " << (isRows ? "column" : "row")
+               << " count (" << expectedSize << ")";
+    return mlir::success();
+}
+
 } // namespace mlir::seki

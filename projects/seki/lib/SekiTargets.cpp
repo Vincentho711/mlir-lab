@@ -13,6 +13,7 @@ llvm::SmallVector<SekiSupportedOp> ops = {
     SekiSupportedOp::ReduceSum,   SekiSupportedOp::ReduceMax, SekiSupportedOp::ReduceMin,
     SekiSupportedOp::Broadcast,   SekiSupportedOp::Transpose,
     SekiSupportedOp::Reshape,
+    SekiSupportedOp::Extract,     SekiSupportedOp::Update,
 };
 
 static SekiTargetAttr buildSekiV1(MLIRContext *ctx) {
