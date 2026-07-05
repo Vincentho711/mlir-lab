@@ -63,3 +63,19 @@ func.func @tile_reduce_scalar_type_mismatch(%src: !seki_hw.tile<f32>) -> i32 {
     %out = seki_hw.tile_reduce_scalar<sum> %src : !seki_hw.tile<f32> -> i32
     return %out : i32
 }
+
+// -----
+
+func.func @tile_extract_vec_elem_type_mismatch(%tile: !seki_hw.tile<f32>, %idx: i64) -> !seki_hw.vec<bf16> {
+    // expected-error@+1 {{tile and result vec must have the same element type}}
+    %vec = seki_hw.tile_extract_vec<rows> %tile, %idx : !seki_hw.tile<f32>, i64 -> !seki_hw.vec<bf16>
+    return %vec : !seki_hw.vec<bf16>
+}
+
+// -----
+
+func.func @vec_insert_tile_elem_type_mismatch(%vec: !seki_hw.vec<f32>, %idx: i64, %tile: !seki_hw.tile<i32>) -> !seki_hw.tile<i32> {
+    // expected-error@+1 {{vec and dest tile must have the same element type}}
+    %out = seki_hw.vec_insert_tile<rows> %vec, %idx outs(%tile : !seki_hw.tile<i32>) : !seki_hw.vec<f32>, i64 -> !seki_hw.tile<i32>
+    return %out : !seki_hw.tile<i32>
+}

@@ -193,4 +193,40 @@ def SekiHw_VecEwBinaryOp : SekiHwOps<"vec_ew_binary", [Pure, SameOperandsAndResu
     let results = (outs SekiHw_VecType:$result);
     let assemblyFormat = "`<` $fn `>` $lhs `,` $rhs attr-dict `:` type($result)";
 }
+
+//===-----------------------------------------------===//
+// seki_hw.tile_extract_vec<axis> - extract row/col from tile into vec
+// %vec = seki_hw.tile_extract_vec<rows> %tile, %idx : !seki_hw.tile<f32>, i64
+//            : !seki_hw.vec<f32>
+//===-----------------------------------------------===//
+def SekiHw_TileExtractVecOp : SekiHwOps<"tile_extract_vec", [Pure]> {
+    let summary = "Extract a row or column from a tile into a vec register";
+    let arguments = (ins SekiHw_TileAxisAttr:$axis,
+                         SekiHw_TileType:$tile,
+                         I64:$idx);
+    let results = (outs SekiHw_VecType:$result);
+    let assemblyFormat = [{`<` $axis `>` $tile `,` $idx
+                           attr-dict `:` type($tile) `,` type($idx) `->` type($result)}];
+    let hasVerifier = 1;
+}
+
+//===-----------------------------------------------===//
+// seki_hw.vec_insert_tile<axis> - write vec into row/col of tile (destination-style)
+// %t1 = seki_hw.vec_insert_tile<rows> %vec, %idx
+//          outs(%t0 : !seki_hw.tile<f32>)
+//          : !seki_hw.vec<f32>, i64 -> !seki_hw.tile<f32>
+//===-----------------------------------------------===//
+def SekiHw_VecInsertTileOp : SekiHwOps<"vec_insert_tile", [Pure]> {
+    let summary = "Write a vec register into a row or column of a tile (destination-style)";
+    let arguments = (ins SekiHw_TileAxisAttr:$axis,
+                         SekiHw_VecType:$vec,
+                         I64:$idx,
+                         SekiHw_TileType:$dest);
+    let results = (outs SekiHw_TileType:$result);
+    let assemblyFormat = [{`<` $axis `>` $vec `,` $idx
+                           `outs` `(` $dest `:` type($dest) `)`
+                           attr-dict `:` type($vec) `,` type($idx) `->` type($result)}];
+    let hasVerifier = 1;
+}
+
 #endif // SEKI_HW_OPS_TD

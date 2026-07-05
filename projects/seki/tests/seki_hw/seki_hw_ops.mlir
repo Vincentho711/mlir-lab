@@ -162,3 +162,35 @@ func.func @tile_reduce_scalar_sum(%src: !seki_hw.tile<f32>) -> f32 {
     %out = seki_hw.tile_reduce_scalar<sum> %src : !seki_hw.tile<f32> -> f32
     return %out : f32
 }
+
+// CHECK-LABEL: func.func @tile_extract_vec_rows
+func.func @tile_extract_vec_rows(%tile: !seki_hw.tile<f32>, %idx: i64) -> !seki_hw.vec<f32> {
+    // CHECK: seki_hw.tile_extract_vec< rows>
+    %vec = seki_hw.tile_extract_vec<rows> %tile, %idx : !seki_hw.tile<f32>, i64 -> !seki_hw.vec<f32>
+    return %vec : !seki_hw.vec<f32>
+}
+
+// CHECK-LABEL: func.func @tile_extract_vec_cols
+func.func @tile_extract_vec_cols(%tile: !seki_hw.tile<f32>, %idx: i64) -> !seki_hw.vec<f32> {
+    // CHECK: seki_hw.tile_extract_vec< cols>
+    %col = seki_hw.tile_extract_vec<cols> %tile, %idx : !seki_hw.tile<f32>, i64 -> !seki_hw.vec<f32>
+    return %col : !seki_hw.vec<f32>
+}
+
+// CHECK-LABEL: func.func @vec_insert_tile_rows
+func.func @vec_insert_tile_rows(%vec: !seki_hw.vec<f32>, %idx: i64, %t0: !seki_hw.tile<f32>) -> !seki_hw.tile<f32> {
+    // CHECK: seki_hw.vec_insert_tile< rows>
+    // CHECK: outs(
+    %t1 = seki_hw.vec_insert_tile<rows> %vec, %idx outs(%t0 : !seki_hw.tile<f32>) : !seki_hw.vec<f32>, i64 -> !seki_hw.tile<f32>
+    return %t1 : !seki_hw.tile<f32>
+}
+
+// Destination-style chain: each inserts produces a new SSA value, all mapping to the same physical tile slot after tile allocation.
+// CHECK-LABEL: func.func @vec_inser_tile_chained
+func.func @vec_inser_tile_chained(%v0: !seki_hw.vec<f32>, %v1: !seki_hw.vec<f32>, %idx: i64, %t0: !seki_hw.tile<f32>) -> !seki_hw.tile<f32> {
+    // CHECK: seki_hw.vec_insert_tile< rows>
+    // CHECK: seki_hw.vec_insert_tile< cols>
+    %t1 = seki_hw.vec_insert_tile<rows> %v0, %idx outs(%t0 : !seki_hw.tile<f32>) : !seki_hw.vec<f32>, i64 -> !seki_hw.tile<f32>
+    %t2 = seki_hw.vec_insert_tile<cols> %v1, %idx outs(%t1 : !seki_hw.tile<f32>) : !seki_hw.vec<f32>, i64 -> !seki_hw.tile<f32>
+    return %t2 : !seki_hw.tile<f32>
+}

@@ -72,4 +72,23 @@ LogicalResult TileReduceScalarOp::verify() {
     return success();
 }
 
+LogicalResult TileExtractVecOp::verify() {
+    auto tileElem = cast<TileType>(getTile().getType()).getElementType();
+    auto resElem = cast<VecType>(getResult().getType()).getElementType();
+    if (tileElem != resElem)
+        return emitOpError("tile and result vec must have the same element type");
+    return success();
+}
+
+LogicalResult VecInsertTileOp::verify() {
+    auto vecElem = cast<VecType>(getVec().getType()).getElementType();
+    auto destElem = cast<TileType>(getDest().getType()).getElementType();
+    auto resElem = cast<TileType>(getResult().getType()).getElementType();
+    if (vecElem != destElem)
+        return emitOpError("vec and dest tile must have the same element type");
+    if (destElem != resElem)
+        return emitOpError("dest and result tile must have the same element type");
+    return success();
+}
+
 } // namespace mlir::seki_hw
