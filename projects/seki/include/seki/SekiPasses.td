@@ -52,4 +52,14 @@ def SekiVerifyStaticShapesPass : Pass<"seki-verify-static-shapes", "::mlir::func
     }];
     let dependentDialects = ["::mlir::func::FuncDialect"];
 }
+
+def SekiLiftToSekiPass : Pass<"seki-lift-to-seki", "::mlir::func::FuncOp">{
+    let summary = "Lift linalg.* ops to seki.* named ops";
+    let description = [{
+        Recognises linalg compute and shape ops by semantic structure and replaces them with named seki.*
+        equivalents. Unrecognised linalg generics produce a compile-time error with the op location.
+    }];
+    let constructor ="mlir::seki::createSekiLiftToSekiPass()";
+    let dependentDialects = ["::mlir::seki::SekiDialect"];
+}
 #endif // SEKI_PASSES_TD
