@@ -77,8 +77,8 @@ static bool isReluBody(mlir::Block &body) {
     auto fAttr = mlir::dyn_cast<mlir::FloatAttr>(constF.getValue());
     if (!fAttr || !fAttr.getValue().isZero()) return false;
 
-    // Second op ust be a arith.maxf consuming the block arg and the zero constant
-    if (!mlir::isa<mlir::arith::MaxFOp>(maxOp)) return false;
+    // Second op must be arith.maximumf or arith.maxnumf consuming the block arg and the zero constant
+    if (!mlir::isa<mlir::arith::MaximumFOp, mlir::arith::MaxNumFOp>(maxOp)) return false;
     mlir::Value blockArg = body.getArgument(0);
     mlir::Value constVal = constOp->getResult(0);
     // Check if arith.maxf uses constant and block arg: arith.maxf(0.0, %x)
@@ -164,8 +164,8 @@ static std::optional<mlir::seki::BinaryFn> matchBinaryBody(mlir::Block &body) {
     if (mlir::isa<mlir::arith::SubFOp>(computeOp)) return mlir::seki::BinaryFn::sub;
     if (mlir::isa<mlir::arith::MulFOp>(computeOp)) return mlir::seki::BinaryFn::mul;
     if (mlir::isa<mlir::arith::DivFOp>(computeOp)) return mlir::seki::BinaryFn::div;
-    if (mlir::isa<mlir::arith::MaxFOp>(computeOp)) return mlir::seki::BinaryFn::max;
-    if (mlir::isa<mlir::arith::MinFOp>(computeOp)) return mlir::seki::BinaryFn::min;
+    if (mlir::isa<mlir::arith::MaximumFOp, mlir::arith::MaxNumFOp>(computeOp)) return mlir::seki::BinaryFn::max;
+    if (mlir::isa<mlir::arith::MinimumFOp, mlir::arith::MinNumFOp>(computeOp)) return mlir::seki::BinaryFn::min;
 
     return std::nullopt;
 }
@@ -201,8 +201,8 @@ static std::optional<mlir::seki::ReduceFn> matchReduceBody(mlir::Block &body) {
 
     // Match computeOp to ReduceFn attr
     if (mlir::isa<mlir::arith::AddFOp>(computeOp)) return mlir::seki::ReduceFn::sum;
-    if (mlir::isa<mlir::arith::MaxFOp>(computeOp)) return mlir::seki::ReduceFn::max;
-    if (mlir::isa<mlir::arith::MinFOp>(computeOp)) return mlir::seki::ReduceFn::min;
+    if (mlir::isa<mlir::arith::MaximumFOp, mlir::arith::MaxNumFOp>(computeOp)) return mlir::seki::ReduceFn::max;
+    if (mlir::isa<mlir::arith::MinimumFOp, mlir::arith::MinNumFOp>(computeOp)) return mlir::seki::ReduceFn::min;
 
     return std::nullopt;
 }
@@ -298,4 +298,66 @@ struct GenericLiftingPattern : mlir::OpRewritePattern<mlir::linalg::GenericOp> {
     }
 };
 
+// linalg.broadcast { dimensions = [...] -> seki.broadcast broadcast_dims = [...]}
+struct BroadcastLiftingPattern : mlir::OpRewritePattern<mlir::linalg::BroadcastOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(mlir::linalg::BroadcastOp op, mlir::PatternRewriter &rewriter) const override {
+        // getDenseI64ArrayAttr wraps ArrayRef<int64_t> into the DenseI64ArrayAttr that seki.broadcast's broadcast_dims 
+        // parameter expects.
+        rewriter.replaceOpWithNewOp<mlir::seki::BroadcastOp>(
+            op, op.getInit().getType(), op.getInput(), rewriter.getDenseI64ArrayAttr(op.getDimensions())
+        );
+        return mlir::success();
+    }
+};
+
+// linalg.tranpose { permutation = [...]} -> seki.tranpose permutation = [...]
+struct TransposeLiftingPattern : mlir::OpRewritePattern<mlir::linalg::TransposeOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    // seki.reshape doesn't have the reassociation map, the input type and result type together fully specify the transformation
+    mlir::LogicalResult matchAndRewrite(mlir::linalg::TransposeOp op, mlir::PatternRewriter &rewriter) const override {
+        rewriter.replaceOpWithNewOp<mlir::seki::TransposeOp>(op, op.getInit().getType(), op.getInput(), 
+                                                            rewriter.getDenseI64ArrayAttr(op.getPermutation()));
+        return mlir::success();
+    }
+};
+
+// tensor.collapse_shape -> seki.reshape
+// E.g. %collapsed = tensor.collapse_shape %input [[0], [1, 2]] : tensor<4x8x16xf32> into tensor<4x128xf32>
+// [[0], [1,2]] means output dim0 <- input dim 0 alone. Output dim 1 <- input dims 1 and 2 merged
+struct CollapseShapeLiftingPattern : mlir::OpRewritePattern<mlir::tensor::CollapseShapeOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(mlir::tensor::CollapseShapeOp op, mlir::PatternRewriter &rewriter) const override {
+        rewriter.replaceOpWithNewOp<mlir::seki::ReshapeOp>(op, op.getResultType(), op.getSrc());
+        return mlir::success();
+    }
+};
+
+// tensor.expand_shape -> seki.reshape
+// E.g. %expanded = tensor.expand_shape %input [[0], [1,2]]
+//                     output_shape [4, 8, 16] : tensor<4x128xf32> into tensor<4x8x16xf32>
+// Expand a 2D tensor into 3D by splitting the last dim
+// [batch, rows*col] -> [batch, rows, cols]
+struct ExpandShapeLiftingPattern : mlir::OpRewritePattern<mlir::tensor::ExpandShapeOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(mlir::tensor::ExpandShapeOp op, mlir::PatternRewriter &rewriter) const override {
+        rewriter.replaceOpWithNewOp<mlir::seki::ReshapeOp>(op, op.getResultType(), op.getSrc());
+        return mlir::success();
+    }
+};
+
+} // namespace
+
+void populateSekiLiftingPatterns(mlir::RewritePatternSet &patterns) {
+    patterns.add<
+        GenericLiftingPattern,
+        BroadcastLiftingPattern,
+        TransposeLiftingPattern,
+        CollapseShapeLiftingPattern,
+        ExpandShapeLiftingPattern
+    >(patterns.getContext());
 }
