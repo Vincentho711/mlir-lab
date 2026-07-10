@@ -58,38 +58,45 @@ static bool isContraction3D(mlir::Operation *op) {
     );
 }
 
-// A linalg::GenericOp body is a single mlir::Block, access its operations via body.begin() / body.end() iterators.
-// Detect the relu pattern: 3-op body = arith.constant 0.0 + arith.maxf + linalg.yield
-// Called by matchUnaryBody beofore the generic 2-op path
+// Detect the relu pattern: maximumf(input, 0.0) + linalg.yield.
+// applyPatternsGreedily hoists arith.constant out of the block before our pattern runs,
+// so the zero may be defined either inside (3-op body) or outside (2-op body).
+// We scan by role rather than position and trace the zero via getDefiningOp().
 static bool isReluBody(mlir::Block &body) {
-    // relu has 2 arguments: relu(%const : arith.constant, %x : arith.f32) = arith.maxf(0.0, x)
     if (body.getNumArguments() != 2) return false;
 
-    auto it = body.begin();
-    mlir::Operation *constOp = &*it++;
-    mlir::Operation *maxOp = &*it++;
-    mlir::Operation *yieldOp = &*it++;
-    if (it != body.end()) return false; // must be exactly 3 ops
+    mlir::Operation *maxOp = nullptr;
+    mlir::Operation *yieldOp = nullptr;
+    for (mlir::Operation &op : body) {
+        if (mlir::isa<mlir::arith::MaximumFOp, mlir::arith::MaxNumFOp>(&op))
+            maxOp = &op;
+        else if (mlir::isa<mlir::linalg::YieldOp>(&op))
+            yieldOp = &op;
+        else if (!mlir::isa<mlir::arith::ConstantOp>(&op))
+            return false; // unexpected op — not relu
+    }
+    if (!maxOp || !yieldOp) return false;
 
-    // First op must be a float constant with value 0.0
-    auto constF = mlir::dyn_cast<mlir::arith::ConstantOp>(constOp);
+    // One operand must be block arg[0] (the input element); the other must be a 0.0 constant
+    mlir::Value blockArg = body.getArgument(0);
+    mlir::Value op0 = maxOp->getOperand(0);
+    mlir::Value op1 = maxOp->getOperand(1);
+    mlir::Value zeroCandidate;
+    if (op0 == blockArg)      zeroCandidate = op1;
+    else if (op1 == blockArg) zeroCandidate = op0;
+    else return false;
+
+    // zeroCandidate may be defined inside or outside the block — trace through getDefiningOp
+    // getDefiningOp() can extract the constOp irrespective of whether it lives within the ^^bb0 block.
+    // Constant folding might fold it to outside of the block
+    auto constF = mlir::dyn_cast_or_null<mlir::arith::ConstantOp>(zeroCandidate.getDefiningOp());
     if (!constF) return false;
     auto fAttr = mlir::dyn_cast<mlir::FloatAttr>(constF.getValue());
     if (!fAttr || !fAttr.getValue().isZero()) return false;
 
-    // Second op must be arith.maximumf or arith.maxnumf consuming the block arg and the zero constant
-    if (!mlir::isa<mlir::arith::MaximumFOp, mlir::arith::MaxNumFOp>(maxOp)) return false;
-    mlir::Value blockArg = body.getArgument(0);
-    mlir::Value constVal = constOp->getResult(0);
-    // Check if arith.maxf uses constant and block arg: arith.maxf(0.0, %x)
-    bool usesArgAndZero = (maxOp->getOperand(0) == blockArg && maxOp->getOperand(1) == constVal) ||
-                          (maxOp->getOperand(0) == constVal && maxOp->getOperand(1) == blockArg);
-    if (!usesArgAndZero) return false;
-
-    // Third op must yield the maxf result, 1 operand
     auto yield = mlir::dyn_cast<mlir::linalg::YieldOp>(yieldOp);
-    return yield && yield.getNumOperands() == 1 && yield.getOperand(0) == maxOp->getResult(0);
-
+    return yield && yield.getNumOperands() == 1 &&
+           yield.getOperand(0) == maxOp->getResult(0);
 }
 
 // Returns the UnaryFn if the body is a single unary elementwise op, else nullopt.
@@ -206,6 +213,42 @@ static std::optional<mlir::seki::ReduceFn> matchReduceBody(mlir::Block &body) {
 
     return std::nullopt;
 }
+
+// Lifts named ops of linalg, e.g. matmul, matmul_tranposed_b, batch_matmul to the matching seki op through ContractionOpInterface
+struct NamedContractionLiftingPattern : mlir::OpInterfaceRewritePattern<mlir::linalg::ContractionOpInterface> {
+    using OpInterfaceRewritePattern::OpInterfaceRewritePattern;
+
+    mlir::LogicalResult matchAndRewrite(mlir::linalg::ContractionOpInterface op, mlir::PatternRewriter &rewriter) const override {
+        // linalg.generic uses linalg::isaContractionOpInterface() for runtime checks but does not implement ContractionOpInterface,
+        // it is handled by GenericLiftingPattern
+        // op.getOperation() unwraps the interface to Operation* for isa/cast
+        if (mlir::isa<mlir::linalg::GenericOp>(op.getOperation())) return mlir::failure();
+
+        auto linalgOp = mlir::cast<mlir::linalg::LinalgOp>(op.getOperation());
+        mlir::Value A = linalgOp.getDpsInputs()[0];
+        mlir::Value B = linalgOp.getDpsInputs()[1];
+        mlir::Value C = linalgOp.getDpsInits()[0];
+
+        // transpose_b : set UnitAttr if the B operand is transposed
+        // op.getOperation() unwraps the interface to the raw Operation* that mlir::isa<> requires
+        auto transposeB = mlir::isa<mlir::linalg::MatmulTransposeBOp, mlir::linalg::BatchMatmulTransposeBOp>(op.getOperation()) ?
+                          mlir::UnitAttr::get(rewriter.getContext()) : mlir::UnitAttr{};
+
+        // Check the iteration space. Each linalg op describes a set of nested loops over index variables. getNumLoops() returns how many
+        // loop dimensions exist.
+        if (linalgOp.getNumLoops() == 3) {
+            rewriter.replaceOpWithNewOp<mlir::seki::MatmulOp>(
+                linalgOp, C.getType(), A, B, C, transposeB);
+            return mlir::success();
+        }
+        if (linalgOp.getNumLoops() == 4) {
+            rewriter.replaceOpWithNewOp<mlir::seki::BatchMatmulOp>(
+                linalgOp, C.getType(), A, B, C, transposeB);
+            return mlir::success();
+        }
+        return mlir::failure();
+    }
+};
 
 // Lifts linalg.generic to the matching seki op by dispatching on body structure.
 // Unrecognised bodies emit a compile-time error at the op's source location.
@@ -354,6 +397,7 @@ struct ExpandShapeLiftingPattern : mlir::OpRewritePattern<mlir::tensor::ExpandSh
 
 void populateSekiLiftingPatterns(mlir::RewritePatternSet &patterns) {
     patterns.add<
+        NamedContractionLiftingPattern,
         GenericLiftingPattern,
         BroadcastLiftingPattern,
         TransposeLiftingPattern,
