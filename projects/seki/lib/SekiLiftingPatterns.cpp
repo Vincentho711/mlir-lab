@@ -58,6 +58,28 @@ static bool isContraction3D(mlir::Operation *op) {
     );
 }
 
+
+// Returns UnitAttr if B's inner dims are ordered (parallel, reduction) since it is matmul.
+// If B's inner dims are (reduction, parallel), then B is stored transposed (NxK) instead of (KxN).
+// Works for both 2D and 3D. Inner row dim is always the second-to-last map result.
+static mlir::UnitAttr detectTransposedB(mlir::linalg::GenericOp op) {
+    mlir::AffineMap bMap = op.getIndexingMapsArray()[1];
+    auto iterTypes = op.getIteratorTypesArray();
+
+    unsigned n = bMap.getNumResults();
+    if (n < 2) return mlir::UnitAttr{};
+
+    // For normal C[MxN] = A[MxK] * B[KxN], we have affine map (m, k, n). The inner dim of b is always the second-to-last element.
+    // getResult(n -2) returns the k.
+    auto innerRowExpr = mlir::dyn_cast<mlir::AffineDimExpr>(bMap.getResult(n - 2));
+    // If it doesn't exist, then it is an error, just return mlir::UnitAttr
+
+    // Check if this dim is a reduction, if so, then it is normal. If not, then it is transposed
+    if (mlir::linalg::isParallelIterator(iterTypes[innerRowExpr.getPosition()]))
+        return mlir::UnitAttr::get(op.getContext());
+    return mlir::UnitAttr{};
+}
+
 // Detect the relu pattern: maximumf(input, 0.0) + linalg.yield.
 // applyPatternsGreedily hoists arith.constant out of the block before our pattern runs,
 // so the zero may be defined either inside (3-op body) or outside (2-op body).
@@ -267,7 +289,7 @@ struct GenericLiftingPattern : mlir::OpRewritePattern<mlir::linalg::GenericOp> {
             mlir::Value C = op.getDpsInits()[0];
             // UnitAttr{} = null = transpose_b absent.
             rewriter.replaceOpWithNewOp<mlir::seki::MatmulOp>(
-                op, C.getType(), A, B, C, mlir::UnitAttr{}
+                op, C.getType(), A, B, C, detectTransposedB(op)
             );
             return mlir::success();
         }
@@ -277,7 +299,7 @@ struct GenericLiftingPattern : mlir::OpRewritePattern<mlir::linalg::GenericOp> {
             mlir::Value B = op.getDpsInputs()[1];
             mlir::Value C = op.getDpsInits()[0];
             rewriter.replaceOpWithNewOp<mlir::seki::BatchMatmulOp>(
-                op, C.getType(), A, B, C, mlir::UnitAttr{}
+                op, C.getType(), A, B, C, detectTransposedB(op)
             );
             return mlir::success();
         }

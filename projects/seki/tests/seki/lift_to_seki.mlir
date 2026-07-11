@@ -80,3 +80,59 @@ func.func @broadcast(%input: tensor<512x512xf32>,
                           dimensions = [0, 1]
     return %0 : tensor<4x8x512x512xf32>
 }
+
+// Check linalg.batch_matmul -> seki.batch_matmul
+// CHECK-LABEL: func.func @batch_matmul
+// CHECK: seki.batch_matmul
+// CHECK-NOT: linalg.batch_matmul
+func.func @batch_matmul(%A: tensor<4x128x512xf32>, %B: tensor<4x512x256xf32>, %C: tensor<4x128x256xf32>) ->
+    tensor<4x128x256xf32> {
+    %0 = linalg.batch_matmul ins(%A, %B: tensor<4x128x512xf32>, tensor<4x512x256xf32>)
+                             outs(%C: tensor<4x128x256xf32>) -> tensor<4x128x256xf32>
+    return %0 : tensor<4x128x256xf32>
+}
+
+// CHECK linalg.transpose -> seki.transpose
+// CHECK-LABEL: func.func @transpose_2d
+// CHECK: seki.transpose
+// CHECK-SAME: permutation = [1, 0]
+// CHECK-NOT: linalg.transpose
+func.func @transpose_2d(%input: tensor<128x256xf32>, %output: tensor<256x128xf32>) -> tensor<256x128xf32> {
+    %0 = linalg.transpose ins(%input: tensor<128x256xf32>)
+                          outs(%output: tensor<256x128xf32>)
+                          permutation = [1, 0]
+    return %0 : tensor<256x128xf32>
+}
+
+// Check tensor.collapse_shape -> seki.reshape
+// CHECK-LABEL: func.func @reshape_collapse
+// CHECK: seki.reshape
+// CHECK-NOT: tensor.collapse_shape
+func.func @reshape_collapse(%input: tensor<4x128x256xf32>) -> tensor<512x256xf32> {
+    %0 = tensor.collapse_shape %input [[0, 1], [2]]
+        : tensor<4x128x256xf32> into tensor<512x256xf32>
+    return %0 : tensor<512x256xf32>
+}
+
+// Check linalg.generic with transposed-B -> seki.matmul {transpose_b}
+// CHECK-LABEL: func.func @generic_matmul_transpose_b
+// CHECK: seki.matmul
+// CHECK-SAME: transpose_b
+// CHECK-NOT: linalg.generic
+func.func @generic_matmul_transpose_b(%A: tensor<128x512xf32>,
+                                      %B: tensor<256x512xf32>,
+                                      %C: tensor<128x256xf32>) -> tensor<128x256xf32> {
+    %0 = linalg.generic {
+        indexing_maps = [affine_map<(m, k, n) -> (m, k)>,
+                         affine_map<(m, k, n) -> (n, k)>,
+                         affine_map<(m, k, n) -> (m, n)>],
+        iterator_types = ["parallel", "reduction", "parallel"]
+    } ins(%A, %B : tensor<128x512xf32>, tensor<256x512xf32>)
+      outs(%C: tensor<128x256xf32>) {
+    ^bb0(%a: f32, %b: f32, %c: f32):
+        %mul = arith.mulf %a, %b : f32
+        %add = arith.addf %mul, %c : f32
+        linalg.yield %add : f32
+    } -> tensor<128x256xf32>
+    return %0 : tensor<128x256xf32>
+}
