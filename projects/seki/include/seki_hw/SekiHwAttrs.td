@@ -3,6 +3,7 @@
 
 include "seki_hw/SekiHwDialect.td"
 include "mlir/IR/EnumAttr.td"
+include "mlir/IR/AttrTypeBase.td"
 
 //===-------------------------------------------------------------===//
 // UnaryFn - single-input elementwise : tile_ew_unary, vec_ew_unary
@@ -94,6 +95,89 @@ def SekiHw_TernaryFn : I32EnumAttr<"TernaryFn", "ternary elementwise function",
 
 def SekiHw_TernaryFnAttr : EnumAttr<SekiHwDialect, SekiHw_TernaryFn, "ternary_fn"> {
     let assemblyFormat = "$value";
+}
+
+
+//===-------------------------------------------------------------===//
+// HardwareUnit - execution unit vocabulary shared between ops and target
+//===-------------------------------------------------------------===//
+def SekiHw_HardwareUnit_MACArray : I32EnumAttrCase<"MACArray", 0, "mac_array">;
+def SekiHw_HardwareUnit_VecEngine : I32EnumAttrCase<"VecEngine", 1, "vec_engine">;
+def SekiHw_HardwareUnit_ScalarUnit : I32EnumAttrCase<"ScalarUnit", 2, "scalar_unit">;
+def SekiHw_HardwareUnit_DMAEngine : I32EnumAttrCase<"DMAEngine", 3, "dma_engine">;
+
+def SekiHw_HardwareUnit : I32EnumAttr<"HardwareUnit", "seki hardware execution unit",
+    [SekiHw_HardwareUnit_MACArray, SekiHw_HardwareUnit_VecEngine,
+     SekiHw_HardwareUnit_ScalarUnit, SekiHw_HardwareUnit_DMAEngine]> {
+    let cppNamespace = "::mlir::seki_hw";
+    let genSpecializedAttr = 0;
+}
+
+//===-------------------------------------------------------------===//
+// PerUnit capability attrs
+// Each attr describes what one hardware unit can do.
+//===-------------------------------------------------------------===//
+
+// MAC array: what element types A/B must be, and what output types the accumulator can
+// write to scratchpad.
+// inputType:   single type - A and B tiles must both have this element type
+// outputTypes:  array of types - the IR outs type select which output mode fires
+//               (f32 = preserve accumulator precision across K-tiles; bf16 truncate on write)
+def SekiHw_MACArrayCapAttr : SekiHwAttr<"MACArrayCap", "mac_array"> {
+    let summary = "MAC array capability: input element type and supported output types";
+    let parameters = (ins "::mlir::Type":$inputType, "::mlir::ArrayAttr":$outputTypes);
+    // assemblyFormat doesn't work when parameters are ::mlir::Type or ::mlir::ArrayAttr as TableGen doesn't know how to parse and print them
+    let hasCustomAssemblyFormat = 1;
+    // declare a static verify(emitError, params, ...) method in generated header.
+    // Used to ensure that both inputTypes and outputTypes must be float types
+    let genVerifyDecl = 1;
+}
+
+// VEC engine: element types for homogeneous ops (relu, add - same in/out type), and (from, to) pairs
+// for tile_cast (type-converting ops).
+// computeTypes: array of types - vec can execute ew ops on these
+// castPairs: array of (Type, Type) pairs - vec can convert between these
+def SekiHw_VecEngineCapAttr : SekiHwAttr<"VecEngineCap", "vec_engine"> {
+    let summary = "VEC engine capability: compute types and cast pairs";
+    let parameters = (ins "::mlir::ArrayAttr":$computeTypes, "::mlir::ArrayAttr":$castPairs);
+    let hasCustomAssemblyFormat = 1;
+}
+
+// Scalar unit: integer types it can compute on.
+def SekiHw_ScalarUnitCapAttr : SekiHwAttr<"ScalarUnitCap", "scalar_unit"> {
+    let summary = "Scalar unit capability: supported integer types";
+    let parameters = (ins "::mlir::ArrayAttr":$supportedTypes);
+    let hasCustomAssemblyFormat = 1;
+    // Verify to ensure that supportedTypes must be IntegerTypes
+    let genVerifyDecl = 1;
+}
+
+// DMA engine: (from, to) type pairs it can convert inline during a transfer (load or store), separated by direction.
+// loadCastPairs: pairs legal for dma_load_cast (DRAM -> tiles)
+// storeCastPairs: pairs legal for dma_store_cast (tiles -> DRAM)
+// Empty list = no cast support in that direction
+// No verifer: empty lists are valid (targets without DMA cast support).
+def SekiHw_DMAEngineCapAttr : SekiHwAttr<"DMAEngineCap", "dma_engine"> {
+    let summary = "DMA engine capability: inline cast pairs per transfer direction";
+    let parameters = (ins "::mlir::ArrayAttr":$loadCastPairs, "::mlir::ArrayAttr":$storeCastPairs);
+    let hasCustomAssemblyFormat = 1;
+}
+
+//===-------------------------------------------------------------===//
+// ISAConfigAttr - store all the unit capabilities for a seki_hw target
+//===-------------------------------------------------------------===//
+def SekiHw_ISAConfigAttr : SekiHwAttr<"ISAConfig", "isa_config"> {
+    let summary = "ISA configuration: per-unit capabilities for a seki_hw target";
+    let parameters = (ins
+        "::mlir::Attribute":$macArray,
+        "::mlir::Attribute":$vecEngine,
+        "::mlir::Attribute":$scalarUnit,
+        "::mlir::Attribute":$dmaEngine
+    );
+    let hasCustomAssemblyFormat = 1;
+    // As parameters are typed ::mlir::Attribute, we need to ensure that macArray is actually a
+    // MACArrayCapAttr using verify()
+    let genVerifyDecl = 1;
 }
 
 #endif // SEKI_HW_ATTRS_TD
