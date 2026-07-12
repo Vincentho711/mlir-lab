@@ -39,6 +39,7 @@ def Seki_EwUnaryOp : SekiOp<"ew_unary",
     let arguments = (ins Seki_UnaryFnAttr:$fn, AnyTensor:$input);
     let results   = (outs AnyTensor:$output);
     let assemblyFormat = "`<` $fn `>` $input attr-dict `:` type($input)";
+    let hasVerifier = 1;
 }
 
 def Seki_EwBinaryOp : SekiOp<"ew_binary",

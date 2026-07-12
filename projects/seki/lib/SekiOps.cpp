@@ -63,6 +63,14 @@ mlir::MutableOperandRange BatchMatmulOp::getDpsInitsMutable() {
     return MutableOperandRange(getOperation(), /*start=*/2, /*length=*/1);
 }
 
+mlir::LogicalResult EwUnaryOp::verify() {
+    auto inputType = mlir::cast<mlir::TensorType>(getInput().getType());
+    if (!mlir::isa<mlir::FloatType>(inputType.getElementType()))
+        return emitOpError("requires floating-point element type, got ")
+               << inputType.getElementType();
+    return mlir::success();
+}
+
 mlir::LogicalResult ReduceOp::verify() {
     auto in = mlir::cast<mlir::RankedTensorType>(getInput().getType());
     auto out = mlir::cast<mlir::RankedTensorType>(getOutput().getType());
