@@ -104,58 +104,16 @@ def Seki_AxisAttr : EnumAttr<SekiDialect, Seki_Axis, "axis"> {
 }
 
 //===-----------------------------------------------===//
-// SekiSupportedOp — target capability list
-//===-----------------------------------------------===//
-def SekiSupportedOp_Matmul      : I32EnumAttrCase<"Matmul",      0,  "matmul">;
-def SekiSupportedOp_BatchMatmul : I32EnumAttrCase<"BatchMatmul", 1,  "batch_matmul">;
-def SekiSupportedOp_EwUnaryRelu : I32EnumAttrCase<"EwUnaryRelu", 2,  "ew_unary_relu">;
-def SekiSupportedOp_EwUnaryExp  : I32EnumAttrCase<"EwUnaryExp",  3,  "ew_unary_exp">;
-def SekiSupportedOp_EwUnaryLog  : I32EnumAttrCase<"EwUnaryLog",  4,  "ew_unary_log">;
-def SekiSupportedOp_EwUnaryNeg  : I32EnumAttrCase<"EwUnaryNeg",  5,  "ew_unary_neg">;
-def SekiSupportedOp_EwUnaryAbs  : I32EnumAttrCase<"EwUnaryAbs",  6,  "ew_unary_abs">;
-def SekiSupportedOp_EwBinaryAdd : I32EnumAttrCase<"EwBinaryAdd", 7,  "ew_binary_add">;
-def SekiSupportedOp_EwBinarySub : I32EnumAttrCase<"EwBinarySub", 8,  "ew_binary_sub">;
-def SekiSupportedOp_EwBinaryMul : I32EnumAttrCase<"EwBinaryMul", 9,  "ew_binary_mul">;
-def SekiSupportedOp_EwBinaryDiv : I32EnumAttrCase<"EwBinaryDiv", 10, "ew_binary_div">;
-def SekiSupportedOp_EwBinaryMax : I32EnumAttrCase<"EwBinaryMax", 11, "ew_binary_max">;
-def SekiSupportedOp_EwBinaryMin : I32EnumAttrCase<"EwBinaryMin", 12, "ew_binary_min">;
-def SekiSupportedOp_ReduceSum   : I32EnumAttrCase<"ReduceSum",   13, "reduce_sum">;
-def SekiSupportedOp_ReduceMax   : I32EnumAttrCase<"ReduceMax",   14, "reduce_max">;
-def SekiSupportedOp_ReduceMin   : I32EnumAttrCase<"ReduceMin",   15, "reduce_min">;
-def SekiSupportedOp_Broadcast   : I32EnumAttrCase<"Broadcast",   16, "broadcast">;
-def SekiSupportedOp_Transpose   : I32EnumAttrCase<"Transpose",   17, "transpose">;
-def SekiSupportedOp_Reshape     : I32EnumAttrCase<"Reshape",     18, "reshape">;
-def SekiSupportedOp_Extract     : I32EnumAttrCase<"Extract",     19, "extract">;
-def SekiSupportedOp_Update      : I32EnumAttrCase<"Update",      20, "update">;
-
-def Seki_SupportedOp : I32EnumAttr<"SekiSupportedOp",
-    "seki compute op supported by target hardware",
-    [SekiSupportedOp_Matmul,   SekiSupportedOp_BatchMatmul,
-     SekiSupportedOp_EwUnaryRelu, SekiSupportedOp_EwUnaryExp,
-     SekiSupportedOp_EwUnaryLog,  SekiSupportedOp_EwUnaryNeg,
-     SekiSupportedOp_EwUnaryAbs,
-     SekiSupportedOp_EwBinaryAdd, SekiSupportedOp_EwBinarySub,
-     SekiSupportedOp_EwBinaryMul, SekiSupportedOp_EwBinaryDiv,
-     SekiSupportedOp_EwBinaryMax, SekiSupportedOp_EwBinaryMin,
-     SekiSupportedOp_ReduceSum,   SekiSupportedOp_ReduceMax,
-     SekiSupportedOp_ReduceMin,
-     SekiSupportedOp_Broadcast, SekiSupportedOp_Transpose,
-     SekiSupportedOp_Reshape,
-     SekiSupportedOp_Extract, SekiSupportedOp_Update]> {
-    let cppNamespace = "::mlir::seki";
-    let genSpecializedAttr = 0;
-}
-
-//===-----------------------------------------------===//
 // Memory subsystem configuration
 //===-----------------------------------------------===//
-def SkiMemoryConfigAttr : SekiAttr<"SekiMemoryConfig", "memory_config"> {
+def SekiMemoryConfigAttr : SekiAttr<"SekiMemoryConfig", "memory_config"> {
     let summary = "Seki memory subsystem hardware configuration";
     let parameters = (ins
         "int64_t":$scratchpadBytes,
         "int64_t":$dramBytes,
         "int64_t":$dmaAlignment,
-        "int64_t":$numScratchpadBanks
+        "int64_t":$numScratchpadBanks,
+        "int64_t":$maxTileId
     );
     let assemblyFormat = "`<` struct(params) `>`";
     let genVerifyDecl = 1;
@@ -177,20 +135,6 @@ def SekiComputeConfigAttr : SekiAttr<"SekiComputeConfig", "compute_config"> {
 }
 
 //===-----------------------------------------------===//
-// ISA configuration
-//===-----------------------------------------------===//
-def SekiISAConfigAttr : SekiAttr<"SekiISAConfig", "isa_config"> {
-    let summary = "Seki ISA configuration";
-    let parameters = (ins
-        "int64_t":$isaVersion,
-        "int64_t":$maxTileId,
-        ArrayRefParameter<"::mlir::seki::SekiSupportedOp">:$supportedOps
-    );
-    let hasCustomAssemblyFormat = 1;
-    let genVerifyDecl = 1;
-}
-
-//===-----------------------------------------------===//
 // Top-level hardware target
 //===-----------------------------------------------===//
 def SekiTargetAttr : SekiAttr<"SekiTarget", "target"> {
@@ -198,7 +142,8 @@ def SekiTargetAttr : SekiAttr<"SekiTarget", "target"> {
     let parameters = (ins
         "::mlir::seki::SekiMemoryConfigAttr":$memory,
         "::mlir::seki::SekiComputeConfigAttr":$compute,
-        "::mlir::seki::SekiISAConfigAttr":$isa
+        "int64_t":$isaVersion,
+        "::mlir::seki_hw::ISAConfigAttr":$hwConfig
     );
     let assemblyFormat = "`<` struct(params) `>`";
 }

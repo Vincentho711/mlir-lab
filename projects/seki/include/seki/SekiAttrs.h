@@ -5,6 +5,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 
 #include "seki/SekiDialect.h"
+#include "seki_hw/SekiHwAttrs.h"
 
 #include "seki/SekiEnums.h.inc"
 

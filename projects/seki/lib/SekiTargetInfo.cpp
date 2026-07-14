@@ -14,6 +14,7 @@ SekiTargetInfo::SekiTargetInfo(mlir::ModuleOp mod) {
     dramBytes          = mem.getDramBytes();
     dmaAlignment       = mem.getDmaAlignment();
     numScratchpadBanks = mem.getNumScratchpadBanks();
+    maxTileId          = mem.getMaxTileId();
 
     SekiComputeConfigAttr compute = target.getCompute();
     macArrayRows            = compute.getMacArrayRows();
@@ -21,11 +22,7 @@ SekiTargetInfo::SekiTargetInfo(mlir::ModuleOp mod) {
     computeUnits            = compute.getComputeUnits();
     vectorRegisterFileBytes = compute.getVectorRegisterFileBytes();
 
-    SekiISAConfigAttr isa = target.getIsa();
-    isaVersion = isa.getIsaVersion();
-    maxTileId  = isa.getMaxTileId();
-    for (SekiSupportedOp op : isa.getSupportedOps())
-        supportedOps.insert(op);
+    isaVersion = target.getIsaVersion();
 }
 
 int64_t SekiTargetInfo::getScratchpadBytes()           const { return scratchpadBytes; }
@@ -45,6 +42,5 @@ int64_t SekiTargetInfo::getVecRegisterCount(mlir::Type elementType) const {
 int64_t SekiTargetInfo::getISAVersion()                const { return isaVersion; }
 int64_t SekiTargetInfo::getMaxTileId()                 const { return maxTileId; }
 int64_t SekiTargetInfo::getMaxTileSlots()              const { return maxTileId + 1; }
-bool SekiTargetInfo::supportsOp(SekiSupportedOp op)    const { return supportedOps.count(op) > 0; }
 
 } // namespace mlir::seki
