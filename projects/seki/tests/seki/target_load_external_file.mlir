@@ -4,7 +4,9 @@
 
 // CHECK: module attributes
 // CHECK-SAME: seki.target = #seki.target<memory = <scratchpadBytes = 524288
+// CHECK-SAME: maxTileId = 64
 // CHECK-SAME: compute = <macArrayRows = 128, macArrayCols = 128
-// CHECK-SAME: isa = <isaVersion = 1, maxTileId = 64
+// CHECK-SAME: isaVersion = 1
+// CHECK-SAME: hwConfig = <mac_array = #seki_hw.mac_array<inputType = bf16
 
 module {}

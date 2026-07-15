@@ -14,7 +14,10 @@ def SekiAttachTargetPass : Pass<"seki-attach-target", "::mlir::ModuleOp"> {
         Option<"target", "seki-target", "std::string", [{""}],
                "Named target (e.g. seki-v1) or path to a .mlir attribute file">,
     ];
-    let dependentDialects = ["::mlir::seki::SekiDialect"];
+    let dependentDialects = [
+        "::mlir::seki::SekiDialect",
+        "::mlir::seki_hw::SekiHwDialect",
+    ];
 }
 
 def MemorySpaceAssignmentPass : Pass<"seki-assign-memory-spaces", "::mlir::ModuleOp"> {

@@ -2,17 +2,19 @@
 // ISA version mismatch: compiler expects isaVersion = 1, target reports 2.
 // expected-error@+1 {{ISA version mismatch: target has version 2, compiler expects 1}}
 module attributes {seki.target = #seki.target<
-    memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
-    compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 2, maxTileId = 127, supported_ops = []>
+    memory = <scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4, maxTileId = 127>,
+    compute = <macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
+    isaVersion = 2,
+    hwConfig = <mac_array = absent, vec_engine = absent, scalar_unit = absent, dma_engine = absent>
 >} {}
 
 // -----
 // Vec register file overflow: 5 simultaneously-live vec<f32> = 2560 bytes > 2048 limit
 module attributes {seki.target = #seki.target<
-    memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
-    compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 1, maxTileId = 127, supported_ops = []>
+    memory = <scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4, maxTileId = 127>,
+    compute = <macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
+    isaVersion = 1,
+    hwConfig = <mac_array = absent, vec_engine = absent, scalar_unit = absent, dma_engine = absent>
 >} {
     func.func @vec_ref_overflow(%c0: f32) -> !seki_hw.vec<f32> {
         %v0 = seki_hw.vec_splat %c0 : f32 -> !seki_hw.vec<f32>
@@ -34,9 +36,10 @@ module attributes {seki.target = #seki.target<
 // Two warnings fire: at %t2 (3 tiles first enter the live set) and at %s0
 // (t0/t1/t2 are still all live until t0 is consumed and removed after %s0).
 module attributes {seki.target = #seki.target<
-    memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
-    compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 1, maxTileId = 1, supported_ops = []>
+    memory = <scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4, maxTileId = 1>,
+    compute = <macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
+    isaVersion = 1,
+    hwConfig = <mac_array = absent, vec_engine = absent, scalar_unit = absent, dma_engine = absent>
 >} {
     func.func @tile_slot_overflow(%addr: i64) -> (f32, f32, f32) {
         %t0 = seki_hw.load %addr -> !seki_hw.tile<f32>
@@ -55,9 +58,10 @@ module attributes {seki.target = #seki.target<
 
 // Valid: 2 simultaneously-live vec<f32> = 1024 bytes, within 2048-byte limit
 module attributes {seki.target = #seki.target<
-    memory = #seki.memory_config<scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4>,
-    compute = #seki.compute_config<macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
-    isa = #seki.isa_config<isaVersion = 1, maxTileId = 127, supported_ops = []>
+    memory = <scratchpadBytes = 524288, dramBytes = 4294967296, dmaAlignment = 64, numScratchpadBanks = 4, maxTileId = 127>,
+    compute = <macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
+    isaVersion = 1,
+    hwConfig = <mac_array = absent, vec_engine = absent, scalar_unit = absent, dma_engine = absent>
 >} {
     func.func @valid_vec(%c0: f32) -> !seki_hw.vec<f32> {
         %v0 = seki_hw.vec_splat %c0 : f32 -> !seki_hw.vec<f32>

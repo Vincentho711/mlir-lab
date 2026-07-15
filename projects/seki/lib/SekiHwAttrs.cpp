@@ -63,10 +63,8 @@ namespace mlir::seki_hw {
 
 // Target assembly format: #seki_hw.mac_array<inputType = bf16, outputTypes = [f32, bf16]>
 mlir::Attribute MACArrayCapAttr::parse(mlir::AsmParser &parser, mlir::Type) {
-    // '<' already consumed by the framework before the parse() is called.
+    if (parser.parseLess()) return {};
     mlir::Type inputType;
-    // Check if it contains the right elements within the first part of '<' and '>' in the assembly format, before the ','
-    // parse.*() returns true if missing, false if exists
     if (parser.parseKeyword("inputType") || parser.parseEqual() || parser.parseType(inputType)
         || parser.parseComma())
         return {};
@@ -104,7 +102,7 @@ mlir::LogicalResult MACArrayCapAttr::verify(llvm::function_ref<mlir::InFlightDia
 
 // Target assembly format: #seki_hw.vec_engine<computeTypes = [bf16, f32], castPairs = [(f32, bf16), (bf16, f32)]>
 mlir::Attribute VecEngineCapAttr::parse(mlir::AsmParser &parser, mlir::Type) {
-    // '<' already parsed
+    if (parser.parseLess()) return {};
     llvm::SmallVector<mlir::Attribute> computeTypesAttrs;
     llvm::SmallVector<mlir::Attribute> castPairsAttrs;
     if (parser.parseKeyword("computeTypes") || parser.parseEqual() || parseTypeArray(parser, computeTypesAttrs))
@@ -134,7 +132,7 @@ void VecEngineCapAttr::print(mlir::AsmPrinter &printer) const {
 
 // Target assembly format: #seki_hw.scalar_unit<supportedTypes = [i64]>
 mlir::Attribute ScalarUnitCapAttr::parse(mlir::AsmParser &parser, mlir::Type) {
-    // '<' is parsed
+    if (parser.parseLess()) return {};
     llvm::SmallVector<mlir::Attribute> supportedTypesAttrs;
     if (parser.parseKeyword("supportedTypes") || parser.parseEqual() || parseTypeArray(parser, supportedTypesAttrs))
         return {};
@@ -163,7 +161,7 @@ mlir::LogicalResult ScalarUnitCapAttr::verify(llvm::function_ref<mlir::InFlightD
 
 // Target assembly format: #seki_hw.dma_engine<loadCastPairs = [(bf16, f32)], storeCastPairs = [(f32, bf16)]>
 mlir::Attribute DMAEngineCapAttr::parse(mlir::AsmParser &parser, mlir::Type) {
-    // '<' already parsed
+    if (parser.parseLess()) return {};
     llvm::SmallVector<mlir::Attribute> loadCastPairsAttrs;
     llvm::SmallVector<mlir::Attribute> storeCastPairsAttrs;
     if (parser.parseKeyword("loadCastPairs") || parser.parseEqual() || parsePairArray(parser, loadCastPairsAttrs))
@@ -193,6 +191,7 @@ void DMAEngineCapAttr::print(mlir::AsmPrinter &printer) const {
 
 // target assembly format : #seki_hw.isa_config<mac_array = #seki_hw.macArray<...>, vec_engine = absent, ...>
 mlir::Attribute ISAConfigAttr::parse(mlir::AsmParser &parser, mlir::Type) {
+    if (parser.parseLess()) return {};
     mlir::Attribute macArray, vecEngine, scalarUnit, dmaEngine;
     // Lambda handles one key = (absent | <attr>) field.
     // Returns bool: true = error, false = ok, matches the || chain convention
