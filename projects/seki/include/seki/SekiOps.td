@@ -17,7 +17,10 @@ class SekiOp<string mnemonic, list<Trait> traits = []>
 //===----------------------------------------------------------------------===//
 // Ops
 //===----------------------------------------------------------------------===/
-def Seki_MatmulOp : SekiOp<"matmul", [DeclareOpInterfaceMethods<DestinationStyleOpInterface>, AllTypesMatch<["C", "result"]>]> {
+def Seki_MatmulOp : SekiOp<"matmul", [
+    DeclareOpInterfaceMethods<DestinationStyleOpInterface>,
+    DeclareOpInterfaceMethods<SekiExecUnitOpInterface>,
+    AllTypesMatch<["C", "result"]>]> {
     let summary = "Matrix multiply-accumulate: C_out = A * B + C_in";
     let arguments = (ins
         AnyRankedTensor:$A,
@@ -34,7 +37,7 @@ def Seki_MatmulOp : SekiOp<"matmul", [DeclareOpInterfaceMethods<DestinationStyle
 }
 
 def Seki_EwUnaryOp : SekiOp<"ew_unary",
-    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface]> {
+    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface, DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
     let summary = "Unary elementwise op on a tensor";
     let arguments = (ins Seki_UnaryFnAttr:$fn, AnyTensor:$input);
     let results   = (outs AnyTensor:$output);
@@ -43,14 +46,14 @@ def Seki_EwUnaryOp : SekiOp<"ew_unary",
 }
 
 def Seki_EwBinaryOp : SekiOp<"ew_binary",
-    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface]> {
+    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface, DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
     let summary = "Binary elementwise op on tensors";
     let arguments = (ins Seki_BinaryFnAttr:$fn, AnyTensor:$lhs, AnyTensor:$rhs);
     let results   = (outs AnyTensor:$output);
     let assemblyFormat = "`<` $fn `>` $lhs `,` $rhs attr-dict `:` type($lhs)";
 }
 
-def Seki_ReduceOp : SekiOp<"reduce", [Pure]> {
+def Seki_ReduceOp : SekiOp<"reduce", [Pure, DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
     let summary = "Reduce tensor along one axis";
     let arguments = (ins Seki_ReduceFnAttr:$fn, AnyRankedTensor:$input, I64Attr:$axis);
     let results   = (outs AnyRankedTensor:$output);
@@ -58,8 +61,10 @@ def Seki_ReduceOp : SekiOp<"reduce", [Pure]> {
     let hasVerifier = 1;
 }
 
-def Seki_BatchMatmulOp : SekiOp<"batch_matmul",
-    [DeclareOpInterfaceMethods<DestinationStyleOpInterface>, AllTypesMatch<["C", "result"]>]> {
+def Seki_BatchMatmulOp : SekiOp<"batch_matmul", [
+    DeclareOpInterfaceMethods<DestinationStyleOpInterface>, 
+    DeclareOpInterfaceMethods<SekiExecUnitOpInterface>, 
+    AllTypesMatch<["C", "result"]>]> {
     let summary = "Batched matrix multiply-accumulate: C_out = A * B + C_in, with leading batch dim";
     let arguments = (ins
         AnyRankedTensor:$A,

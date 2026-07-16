@@ -3,6 +3,7 @@
 
 #include "mlir/IR/OpDefinition.h"
 #include "seki/SekiDialect.h"
+#include "seki_hw/SekiHwAttrs.h"
 
 #include "seki/SekiInterfaces.h.inc"
 

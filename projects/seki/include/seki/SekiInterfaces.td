@@ -21,4 +21,21 @@ def SekiEwFnOpInterface : OpInterface<"SekiEwFnOpInterface"> {
     ];
 }
 
+def SekiExecUnitOpInterface : OpInterface<"SekiExecUnitOpInterface"> {
+    let description = [{
+        Interface implemented by all seki ops that require specific hardware execution units.
+        Returns all units the op needs, every listed unit must be present on the target for op to be legal.
+        Allows passes to query this interface to validate model-hardware compatability.
+    }];
+    let cppNamespace = "::mlir::seki";
+    let methods = [
+        InterfaceMethod<
+            "Hardware execution units this op requires, all of them must be present on the target",
+            "::llvm::SmallVector<::mlir::seki_hw::HardwareUnit>",
+            "getRequiredUnits",
+            (ins)
+        >,
+    ];
+}
+
 #endif // SEKI_INTERFACES_TD

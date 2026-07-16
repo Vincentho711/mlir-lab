@@ -240,4 +240,24 @@ mlir::LogicalResult UpdateOp::verify() {
     return mlir::success();
 }
 
+llvm::SmallVector<mlir::seki_hw::HardwareUnit> MatmulOp::getRequiredUnits() {
+    return {mlir::seki_hw::HardwareUnit::MACArray};
+}
+
+llvm::SmallVector<mlir::seki_hw::HardwareUnit> BatchMatmulOp::getRequiredUnits() {
+    return {mlir::seki_hw::HardwareUnit::MACArray};
+}
+
+llvm::SmallVector<mlir::seki_hw::HardwareUnit> EwUnaryOp::getRequiredUnits() {
+    return {mlir::seki_hw::HardwareUnit::VecEngine};
+}
+
+llvm::SmallVector<mlir::seki_hw::HardwareUnit> EwBinaryOp::getRequiredUnits() {
+    return {mlir::seki_hw::HardwareUnit::VecEngine};
+}
+
+llvm::SmallVector<mlir::seki_hw::HardwareUnit> ReduceOp::getRequiredUnits() {
+    return {mlir::seki_hw::HardwareUnit::VecEngine};
+}
+
 } // namespace mlir::seki
