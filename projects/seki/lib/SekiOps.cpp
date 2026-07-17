@@ -260,4 +260,15 @@ llvm::SmallVector<mlir::seki_hw::HardwareUnit> ReduceOp::getRequiredUnits() {
     return {mlir::seki_hw::HardwareUnit::VecEngine};
 }
 
+mlir::LogicalResult CastOp::verify() {
+    auto in = mlir::cast<mlir::RankedTensorType>(getInput().getType());
+    auto out = mlir::cast<mlir::RankedTensorType>(getOutput().getType());
+    // Shape must be identical
+    if (in.getShape() != out.getShape())
+        return emitOpError("input and output shapes must match");
+    if (in.getElementType() == out.getElementType())
+        return emitOpError("input and output element types must differ (identity cast is a no-op)");
+    return mlir::success();
+}
+
 } // namespace mlir::seki

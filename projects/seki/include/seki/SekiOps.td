@@ -121,4 +121,12 @@ def Seki_UpdateOp : SekiOp<"update", [Pure, AllTypesMatch<["dest", "result"]>]> 
     let hasVerifier = 1;
 }
 
+def Seki_CastOp: SekiOp<"cast", [Pure]> {
+    let summary = "Elementwise type conversion on a tensor (e.g. f32 -> bf16)";
+    let arguments = (ins AnyRankedTensor:$input);
+    let results = (outs AnyRankedTensor:$output);
+    let assemblyFormat = "$input attr-dict `:` type($input) `->` type($output)";
+    let hasVerifier = 1;
+}
+
 #endif // SEKI_OPS_TD

@@ -75,6 +75,22 @@ mlir::Attribute MACArrayCapAttr::parse(mlir::AsmParser &parser, mlir::Type) {
 
     if (parser.parseGreater()) return {};
 
+    // Validate before calling get(): get() asserts that verifyInvariants() passes,
+    // so invalid types must be caught here and returned as parse errors, not invariant failures.
+    if (!mlir::isa<mlir::FloatType>(inputType)) {
+        parser.emitError(parser.getCurrentLocation(),
+                         "inputType must be a float type, got ") << inputType;
+        return {};
+    }
+    for (mlir::Attribute a : outputTypeAttrs) {
+        mlir::Type t = mlir::cast<mlir::TypeAttr>(a).getValue();
+        if (!mlir::isa<mlir::FloatType>(t)) {
+            parser.emitError(parser.getCurrentLocation(),
+                             "outputTypes must all be float types, got ") << t;
+            return {};
+        }
+    }
+
     return MACArrayCapAttr::get(parser.getContext(), inputType, mlir::ArrayAttr::get(parser.getContext(), outputTypeAttrs));
 }
 
@@ -138,6 +154,16 @@ mlir::Attribute ScalarUnitCapAttr::parse(mlir::AsmParser &parser, mlir::Type) {
         return {};
     if (parser.parseGreater())
         return {};
+
+    // Same rationale as MACArrayCapAttr::parse: pre-validate before calling get().
+    for (mlir::Attribute a : supportedTypesAttrs) {
+        mlir::Type t = mlir::cast<mlir::TypeAttr>(a).getValue();
+        if (!mlir::isa<mlir::IntegerType>(t)) {
+            parser.emitError(parser.getCurrentLocation(),
+                             "supportedTypes must all be integer types, got ") << t;
+            return {};
+        }
+    }
 
     return ScalarUnitCapAttr::get(parser.getContext(), mlir::ArrayAttr::get(parser.getContext(), supportedTypesAttrs));
 }
