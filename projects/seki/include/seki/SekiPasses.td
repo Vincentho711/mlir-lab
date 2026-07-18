@@ -64,4 +64,19 @@ def SekiLiftToSekiPass : Pass<"seki-lift-to-seki", "::mlir::func::FuncOp">{
     }];
     let dependentDialects = ["::mlir::seki::SekiDialect"];
 }
+
+def SekiCastToTargetTypesPass : Pass<"seki-cast-to-target-types", "::mlir::ModuleOp"> {
+    let summary = "Insert seki.cast ops to narrow matmul inputs to the MAC array's accepted type";
+    let description = [{
+        Reads macInputType() from SekiTargetInof. Walks seki.matmul and seki.batch_matmul;
+        for each ins operand whose element type does not match the MAC input type, inserts a seki.cast immediately
+        before the op. Guards each insertion with isCastSupported(from, to) and signals pass failure if no cast path
+        exists. The outs operand is not modified, its type drives the hardware output mode.
+        This pass is opt-in and off by default; run before --seki-check-hw-units.
+    }];
+    let dependentDialects = [
+        "::mlir::seki::SekiDialect",
+        "::mlir::seki_hw::SekiHwDialect",
+    ];
+}
 #endif // SEKI_PASSES_TD
