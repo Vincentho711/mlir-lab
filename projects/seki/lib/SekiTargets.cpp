@@ -25,12 +25,15 @@ static SekiTargetAttr buildSekiV1(MLIRContext *ctx) {
         mlir::ArrayAttr::get(ctx, {
             mlir::TypeAttr::get(mlir::Float32Type::get(ctx)),
             mlir::TypeAttr::get(mlir::BFloat16Type::get(ctx))}));
-    // VEC engine: bf16 and f32 compute, no cast pairs yet
+    // VEC engine: bf16 and f32 compute; tile_cast supported in both directions
+    auto bf16 = mlir::TypeAttr::get(mlir::BFloat16Type::get(ctx));
+    auto f32  = mlir::TypeAttr::get(mlir::Float32Type::get(ctx));
+    auto pair = [&](mlir::TypeAttr a, mlir::TypeAttr b) {
+        return mlir::ArrayAttr::get(ctx, {a, b});
+    };
     auto vecEngine = seki_hw::VecEngineCapAttr::get(ctx,
-        mlir::ArrayAttr::get(ctx, {
-            mlir::TypeAttr::get(mlir::BFloat16Type::get(ctx)),
-            mlir::TypeAttr::get(mlir::Float32Type::get(ctx))}),
-        mlir::ArrayAttr::get(ctx, {}));
+        mlir::ArrayAttr::get(ctx, {bf16, f32}),
+        mlir::ArrayAttr::get(ctx, {pair(f32, bf16), pair(bf16, f32)}));
     // Scalar unit: i64
     auto scalarUnit = seki_hw::ScalarUnitCapAttr::get(ctx,
         mlir::ArrayAttr::get(ctx, {

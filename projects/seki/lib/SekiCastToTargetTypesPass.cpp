@@ -40,6 +40,10 @@ struct SekiCastToTargetTypesPass : impl::SekiCastToTargetTypesPassBase<SekiCastT
     using SekiCastToTargetTypesPassBase::SekiCastToTargetTypesPassBase;
     void runOnOperation() override {
         mlir::ModuleOp mod = getOperation();
+        // SekiTargetInfo's constructor calls report_fatal_error if the attribute
+        // is absent, so check before constructing it.
+        if (!mod->getAttrOfType<mlir::seki::SekiTargetAttr>("seki.target"))
+            return;
         mlir::seki::SekiTargetInfo info(mod);
 
         // Check if the target has a macArray, if not, there is nothing to narrow

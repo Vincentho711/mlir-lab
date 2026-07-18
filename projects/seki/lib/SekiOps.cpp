@@ -51,9 +51,11 @@ mlir::LogicalResult MatmulOp::verify() {
     if (A.getElementType() != B.getElementType())
         return emitOpError("A and B element types must match: ")
             << A.getElementType() << " vs " << B.getElementType();
-    if (A.getElementType() != C.getElementType())
-        return emitOpError("accumulator C element types must match A/B: ")
-            << C.getElementType() << " vs " << A.getElementType();
+    // C (accumulator) may differ from A/B — mixed-precision MACs (e.g. bf16 inputs,
+    // f32 accumulator) are legal; the hardware output mode is driven by C's element type.
+    if (!mlir::isa<mlir::FloatType>(C.getElementType()))
+        return emitOpError("C must have floating-point element type, got ")
+            << C.getElementType();
 
     return mlir::success();
 }
@@ -120,8 +122,9 @@ mlir::LogicalResult BatchMatmulOp::verify() {
         return emitOpError("requires floating-point element type");
     if (A.getElementType() != B.getElementType())
         return emitOpError("A and B element types must match");
-    if (A.getElementType() != C.getElementType())
-        return emitOpError("C element type must match A/B");
+    // C may differ from A/B — mixed-precision accumulators are legal.
+    if (!mlir::isa<mlir::FloatType>(C.getElementType()))
+        return emitOpError("C must have floating-point element type");
     return mlir::success();
 }
 
