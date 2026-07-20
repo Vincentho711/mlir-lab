@@ -152,6 +152,7 @@ cc_library(
         "lib/SekiLiftToSekiPass.cpp",
         "lib/SekiLiftingPatterns.cpp",
         "lib/SekiCastToTargetTypesPass.cpp",
+        "lib/SekiCheckHwUnitsPass.cpp",
     ],
     hdrs = [
         "include/seki/SekiPasses.h",

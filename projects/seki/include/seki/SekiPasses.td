@@ -79,4 +79,17 @@ def SekiCastToTargetTypesPass : Pass<"seki-cast-to-target-types", "::mlir::Modul
         "::mlir::seki_hw::SekiHwDialect",
     ];
 }
+
+def SekiCheckHwUnitsPass : Pass<"seki-check-hw-units", "::mlir::ModuleOp"> {
+    let summary = "Verify that all seki ops are supported by the target's hardware units";
+    let description = [{
+        Walks every op in the module and checks 2 things per op:
+        1. the required hardware unit exists on the target, and
+        2. the op's types are legal for that unit.
+        Pure verifier - no IR is modified, signals failure on the first unsatisfied constraint.
+        seki.cast is handled separately via isCastSupported().
+    }];
+    let dependentDialects = ["mlir::seki::SekiDialect", "mlir::seki_hw::SekiHwDialect"];
+}
+
 #endif // SEKI_PASSES_TD
