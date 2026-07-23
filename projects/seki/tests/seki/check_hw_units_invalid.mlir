@@ -59,3 +59,21 @@ module attributes { seki.target = #seki.target<
         return %r : tensor<256x128xbf16>
     }
 }
+
+// -----
+// vec_engine = absent; seki.ew_binary requires VecEngine — must error.
+module attributes { seki.target = #seki.target<
+    memory = <scratchpadBytes = 8388608, dramBytes = 17179869184, dmaAlignment = 64, numScratchpadBanks = 4, maxTileId = 63>,
+    compute =  <macArrayRows = 128, macArrayCols = 128, computeUnits = 4, vectorRegisterFileBytes = 2048>,
+    isaVersion = 1,
+    hwConfig = <mac_array = #seki_hw.mac_array<inputType = bf16, outputTypes = [f32, bf16]>,
+                vec_engine = absent,
+                scalar_unit = #seki_hw.scalar_unit<supportedTypes = [i64]>,
+                dma_engine = #seki_hw.dma_engine<loadCastPairs = [], storeCastPairs = []>>
+>} {
+    func.func @add_no_vec(%lhs : tensor<256x128xbf16>, %rhs : tensor<256x128xbf16>) -> tensor<256x128xbf16> {
+        // expected-error @+1 {{requires vec_engine, but target has none}}
+        %r = seki.ew_binary<add> %lhs, %rhs : tensor<256x128xbf16>
+        return %r : tensor<256x128xbf16>
+    }
+}

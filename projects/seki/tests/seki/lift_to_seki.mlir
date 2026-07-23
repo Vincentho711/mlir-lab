@@ -51,6 +51,26 @@ func.func @ew_relu(%input: tensor<400x567xf32>, %output: tensor<400x567xf32>) ->
     return %0 : tensor<400x567xf32>
 }
 
+// Check linalg.generic with 2 ins operands and addf body -> seki.ew_binary<add>
+// CHECK-LABEL: func.func @ew_add
+// CHECK: seki.ew_binary< add>
+// CHECK-NOT: linalg.generic
+func.func @ew_add(%lhs: tensor<400x567xf32>, %rhs: tensor<400x567xf32>,
+                  %output: tensor<400x567xf32>) -> tensor<400x567xf32> {
+    %0 = linalg.generic {
+        indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                         affine_map<(d0, d1) -> (d0, d1)>,
+                         affine_map<(d0, d1) -> (d0, d1)>],
+        iterator_types = ["parallel", "parallel"]
+    } ins(%lhs, %rhs : tensor<400x567xf32>, tensor<400x567xf32>)
+      outs(%output : tensor<400x567xf32>) {
+    ^bb0(%in_lhs: f32, %in_rhs: f32, %out: f32):
+        %result = arith.addf %in_lhs, %in_rhs: f32
+        linalg.yield %result : f32
+    } -> tensor<400x567xf32>
+    return %0 : tensor<400x567xf32>
+}
+
 // Check that linalg.generic {} through aggregating the elements by row or column -> seki.reduce<>
 // CHECK-LABEL: func.func @reduce_sum
 // CHECK: seki.reduce< sum>

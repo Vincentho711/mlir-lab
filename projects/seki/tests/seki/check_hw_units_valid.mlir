@@ -22,3 +22,10 @@ func.func @relu_bf16_ok(%x : tensor<256x128xbf16>) -> tensor<256x128xbf16> {
     %r = seki.ew_unary<relu> %x : tensor<256x128xbf16>
     return %r : tensor<256x128xbf16>
 }
+
+// CHECK-LABEL: func.func @add_bf16_ok
+// CHECK: seki.ew_binary< add>
+func.func @add_bf16_ok(%lhs: tensor<256x128xbf16>, %rhs : tensor<256x128xbf16>) -> tensor<256x128xbf16> {
+    %r = seki.ew_binary<add> %lhs, %rhs : tensor<256x128xbf16>
+    return %r : tensor<256x128xbf16>
+}

@@ -35,3 +35,11 @@ func.func @bf16_no_cast(%A : tensor<256x512xbf16>, %B : tensor<512x128xbf16>,
                 outs(%C : tensor<256x128xf32>) -> tensor<256x128xf32>
     return %result : tensor<256x128xf32>
 }
+
+// CHECK-LABEL: func.func @ew_binary_not_cast
+// CHECK-NOT: seki.cast
+// CHECK: seki.ew_binary< add> {{.*}} : tensor<256x128xf32>
+func.func @ew_binary_not_cast(%lhs : tensor<256x128xf32>, %rhs : tensor<256x128xf32>) -> tensor<256x128xf32> {
+    %r = seki.ew_binary<add> %lhs, %rhs : tensor<256x128xf32>
+    return %r : tensor<256x128xf32>
+}
