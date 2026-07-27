@@ -92,4 +92,17 @@ def SekiCheckHwUnitsPass : Pass<"seki-check-hw-units", "::mlir::ModuleOp"> {
     let dependentDialects = ["mlir::seki::SekiDialect", "mlir::seki_hw::SekiHwDialect"];
 }
 
+def SekiPadToTileBoundaryPass : Pass<"seki-pad-to-tile-boundary", "::mlir::ModuleOp"> {
+    let summary = "Pad seki.matmul and seki.batch_matmul operands to 128-multiple shapes";
+    let description = [{
+        Walks seki.matmul and seki.batch_matmul ops. For each operand dimension that is not
+        a multiple of the tile size (getMACRows() / getMACCols()), inserts a tensor.pad with
+        zero fill and high-side padding only (low = 0). Inserts a tensor.extract_slice on the
+        result to strip the padding from the output. After this pass, all matmul shapes are
+        tile-aligned and --seki-tile-ops generates exact trip counts with no remainder tiles.
+        Requires --seki-attach-target to have run first.
+    }];
+    let dependentDialects = ["mlir::tensor::TensorDialect"];
+}
+
 #endif // SEKI_PASSES_TD
