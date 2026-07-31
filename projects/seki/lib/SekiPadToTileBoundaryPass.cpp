@@ -1,77 +1,104 @@
 #include "seki/SekiPasses.h"
 #include "seki/SekiTargetInfo.h"
 #include "seki/SekiOps.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 #define GEN_PASS_DEF_SEKIPADTOTILEBOUNDARYPASS
 #include "seki/SekiPasses.h.inc"
 
 namespace {
 
-// Computes how many elements to add to `dim` to reach the next multiple of `tile`.
-// E.g. dim=128, tile=128 -> 0
-// dim=100, tile=128 -> 28
-static int64_t padAmount(int64_t dim, int64_t tile) {
-    return (-dim % tile + tile) % tile;
-}
+struct SekiPadTypeConverter : mlir::TypeConverter {
+    SekiPadTypeConverter(int64_t tileRows, int64_t tileCols) : tileRows_(tileRows)
+        tileCols_(tileCols) {
+        // Pass all non-tensor types through unchanged, e.g. index, f32 scalars
+        addConversion([](mlir::Type t) -> mlir::Type{ return t; });
 
-// Pads `value` (a ranked tensor) so that dimensions `dimIndices` are multiple of `tile`.
-// Returns the padded value. If no dimension needs padding, returns `value` unchanged.
-// tensor.pad structure:
-//   tensor.pad %src low[l0, l1, ...] high[h0, h1, ...] {
-//     ^bb0(%i0: index, %i1: index, ...): <- one index arg per tensor dimension
-//       tensor.yield %pad_val            <- the fill value for out-of-bounds elements
-//   } : tensor<...> to tensor<...>
-static mlir::Value padTensor(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, 
-                             llvm::ArrayRef<int64_t> dimIndices, int64_t tile) {
-    auto tensorType = mlir::cast<mlir::RankedTensorType>(value.getType());
-    auto shape = tensorType.getShape();
-    int64_t rank = shape.size();
+        // For ranked tensors, pad the last 2 dims to the next tile multiple.
+        // Leading dims (batch/order) are left unchanged.
+        // TypeConverter::convertTypes tries registered conversions in reverse
+        // registration order. The RankedTensorType lambda is registered second, so
+        // it is tried first.
+        addConversion([this](mlir::RankedTensorType t) -> mlir::RankedTensorType {
+            llvm::SmallVector<int64_t> shape(t.getShape());
+            int64_t rank = static_cast<int64_t>(shape.size());
+            if (rank >= 2)
+                shape[rank - 2] = alignTo(shape[rank - 2], tileRows_);
+            if (rank >= 1)
+                shape[rank - 1] = alignTo(shape[rank - 1], tileCols_);
+            return mlir::RankedTensorType::get(shape, t.getElementType());
+        });
+    }
+private:
+    int64_t tileRows_;
+    int64_t tileCols_;
 
-    // For each dim, figure out how many elements to pad
-    llvm::SmallVector<int64_t> highPad(rank, 0);
-    bool needsPad = false;
-    for (int64_t d : dimIndices) {
-        int64_t p = padAmount(shape[d], tile);
-        highPad[d] = p;
-        if (p !=0 ) needsPad = true;
+    // Ceiling-division alignment: smallest multiple of tile >= dim.
+    static in64_t alignTo(int64_t dim, int64_t tile) {
+        return ((dim + tile - 1) / tile) * tile;
     }
 
-    // All dimensions already aligned, return original value
-    if (!needsPad)
-        return value;
+};
+} // namespace
 
-    // Compute the output shape after padding
-    llvm::SmallVector<int64_t> paddedSape(shape.begin(), shape.end());
-    for (int64_t d : dimIndices)
-        paddedShape[d] += highPad[d];
-    auto paddedType = mlir::RankedTensorType::get(paddedShape, tensorType.getElementType());
+struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadToTileBoundaryPass> {
+    using SekiPadToTileBoundaryPassBase::SekiPadToTileBoundaryPassBase;
 
-    // low pads are all 0, we pad on the high side only
-    llvm::SmallVector<mlir::OpFoldResult> low(rank, builder.getIndexAttr(0));
-    llvm::SmallVector<mlir::OpFoldResult> high;
-    for (int64_t d = 0; d < rank; ++d)
-        high.push_back(builder.getIndexAttr(highPad[d]));
+    void runOnOperation() override {
+        mlir::ModuleOp mod = getOperation();
+        if (!mod->getAttrOfType<mlir::seki::SekiTargetAttr>("seki.target"))
+            return;
+        mlir::seki::SekiTargetInfo info(mod);
+        if (!info.hasMACArray())
+            return;
+        int64_t tile = info.getMACRows();
+        mlir::OpBuilder builder(mod.getContext());
 
-    // Create the tensor.pad op. The fill region is built via a callback.
-    auto padOp = builder.create<mlir::tensor::PadOp>(loc, paddedType, value, low, high);
+        mod.walk([&])(mlir::Operation *op) {
+            // Only pad matmul-family ops
+            if (!mlir::isa<mlir::seki::MatmulOp, mlir::seki::BatchMatmulOp>(op))
+                return;
+            builder.setInsertionPoint(op);
+            mlir::Location loc = op->getLoc();
+            
+            if (auto matmul = mlir::dyn_cast<mlir::seki::MatmulOp>(op)) {
+                // Save the original shapes before any rewiring
+                auto origAType = mlir::cast<mlir::RankedTensorType>(matmul.getA().getType());
+                auto origCType = mlir::cast<mlir::RankedTensorType>(matmul.getC().getType());
+                int64_t origM = origAType.getDimSize(0);  // rows of A = rows of result
+                int64_t origN = origCType.getDimSize(1);  // cols of C = cols of result
+                // seki.matmul: A is [M, K], B is [K, N], C/result is [M, N]
+                // Pad all dims of A, both M and K, as well as all dims of B, both K and N
+                mlir::Value newA = padTensor(builder, loc, matmul.getA(), {0, 1}, tile);
+                mlir::Value newB = padTensor(builder, loc, matmul.getB(), {0, 1}, tile);
 
-    // Build th fill region, a single block with one index arg per tensor dim, yielding the zero constant
-    // of the tensor's element type.
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    auto &region = padOp.getRegion();
-    auto *block = builder.creatBlock(&region);
-    // one index argument per tensor dimension
-    for (int64_t i = 0 ; i < rank : ++i)
-        block->addArgument(builder.getIndexType(), loc);
+                // Check if we padded, if not, no rewiring is needed
+                if (newA == matmul.getA() && newB == matmul.getB())
+                    return;
 
-    // File with 0.0 as the tensor's element type
-    mlir::Type elemType = tensorType.getElementType();
-    mlir::Value zerp = builder.create<mlir::arith::ConstantOp>(loc, builder.getFloatAttr(elemType, 0.0));
-    builder.create<mlir::tensor::YieldOp>(loc, zero);
+                // Pad C, it must match the padded M and N of A and B.
+                mlir::Value newC = padTensor(builder, loc, matmul.getC(), {0, 1}, tile);
 
-    return padOp.getResult();
-}
+                // Rewire the matmul to use padded operands
+                op->setOperand(0, newA);
+                op->setOperand(0, newB);
+                op->setOperand(0, newC);
+
+                // Set result's type to C's result type due to DPS
+                auto paddedResultType = mlir::cast<mlir::RankedTensorType>(newC.getType());
+                op->getResult(0).setType(paddedResultType);
+                
+                // Insert tensor.extract_slice after the matmul to strip the M/N padding
+                builder.setInsertionPointAfter(op);
+                auto origResultType = mlir::cast<mlir::RankedTensorType>(matmul.getResult.getType())
+            }
+        }
+    }
+
+};
 }
