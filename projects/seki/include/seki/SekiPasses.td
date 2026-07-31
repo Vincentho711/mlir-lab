@@ -93,16 +93,27 @@ def SekiCheckHwUnitsPass : Pass<"seki-check-hw-units", "::mlir::ModuleOp"> {
 }
 
 def SekiPadToTileBoundaryPass : Pass<"seki-pad-to-tile-boundary", "::mlir::ModuleOp"> {
-    let summary = "Pad seki.matmul and seki.batch_matmul operands to 128-multiple shapes";
+    let summary = "Pad tensor computation dimensions to tile-aligned shapes at function boundaries";
     let description = [{
-        Walks seki.matmul and seki.batch_matmul ops. For each operand dimension that is not
-        a multiple of the tile size (getMACRows() / getMACCols()), inserts a tensor.pad with
-        zero fill and high-side padding only (low = 0). Inserts a tensor.extract_slice on the
-        result to strip the padding from the output. After this pass, all matmul shapes are
-        tile-aligned and --seki-tile-ops generates exact trip counts with no remainder tiles.
-        Requires --seki-attach-target to have run first.
+        Uses TypeConverter + applyPartialConversion to propagate tile-aligned types through every
+        seki op in each function. A rank-aware TypeConverter pads the last two dimensions of every
+        tensor type to the next multiple of getMACRows() / getMACCols(); leading batch dimensions
+        are left unchanged. tensor.pad is inserted by source materializations at type boundaries
+        (e.g. function arguments feeding matmul-bound ops); tensor.extract_slice is inserted by
+        target materialization at func.return only, restoring the original ABI shape so Phase 23
+        DMA stores write exactly the valid region. seki.reshape is excluded from conversion and
+        acts as a type-propagation barrier — tensor.pad is materialised at its consumer edge.
+        After this pass all seki.matmul and seki.batch_matmul computation dimensions are multiples
+        of the tile size; --seki-tile-ops (Phases 20/21) generates exact trip counts with no
+        remainder branches or scf.if guards.
+        Precondition: loop-free, region-free IR (run after --seki-check-hw-units, before
+        --seki-fuse-ops). Requires --seki-attach-target to have run first.
     }];
-    let dependentDialects = ["mlir::tensor::TensorDialect"];
+    let dependentDialects = [
+        "::mlir::tensor::TensorDialect",  // tensor.pad, tensor.extract_slice (materializations)
+        "::mlir::arith::ArithDialect",    // arith.constant 0.0 inside tensor.pad fill region
+        "::mlir::seki::SekiDialect",      // recreated seki ops (MatmulOp, EwUnaryOp, etc.)
+    ];
 }
 
 #endif // SEKI_PASSES_TD
