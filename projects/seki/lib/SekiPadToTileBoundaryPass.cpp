@@ -14,7 +14,7 @@
 namespace {
 
 struct SekiPadTypeConverter : mlir::TypeConverter {
-    SekiPadTypeConverter(int64_t tileRows, int64_t tileCols) : tileRows_(tileRows)
+    SekiPadTypeConverter(int64_t tileRows, int64_t tileCols) : tileRows_(tileRows),
         tileCols_(tileCols) {
         // Pass all non-tensor types through unchanged, e.g. index, f32 scalars
         addConversion([](mlir::Type t) -> mlir::Type{ return t; });
@@ -33,18 +33,130 @@ struct SekiPadTypeConverter : mlir::TypeConverter {
                 shape[rank - 1] = alignTo(shape[rank - 1], tileCols_);
             return mlir::RankedTensorType::get(shape, t.getElementType());
         });
+
+        // Source materialisation, called when it needs to produce a padded value from
+        // an original-type value.
+        // Files at every function argument use site where a converted op expects the padded type. 
+        addSourceMaterialization([](mlir::OpBuilder &builder, mlir::RankedTensorType resultType, 
+                                    mlir::ValueRange inputs, mlir::Location loc) -> std::optional<mlir::Value>{
+            if (inputs.size() != 1)
+                return std::nullopt;
+            return buildPad(builder, loc, inputs[0], resultType);
+        });
+
+        // Target materialisation, called when it needs to produce an orignal-type value
+        // from a padded value, fires at func.return where the function signature expects the original 
+        // unpadded type. 
+        // Inserts: tensor.extract_slice %padded[0, ...][originalSizes][1, ...]
+        addTargetMaterialization([](mlir::OpBuilder &builder, mlir::RankedTensorType resultType,
+                                    mlir::ValueRange inputs, mlir::Location loc) -> std::optional<mlir::Value> {
+            if (inputs.size() != 1)
+                return std::nullopt;
+            return buildSlice(builder, loc, inputs[0], resultType);
+        });
     }
 private:
     int64_t tileRows_;
     int64_t tileCols_;
 
     // Ceiling-division alignment: smallest multiple of tile >= dim.
-    static in64_t alignTo(int64_t dim, int64_t tile) {
+    static int64_t alignTo(int64_t dim, int64_t tile) {
         return ((dim + tile - 1) / tile) * tile;
     }
 
+    // Builds tensor.pad from src to targetType with zero-fill, high side only.
+    static mlir::Value buildPad(mlir::OpBuilder &builder, mlir::Location loc,
+                                mlir::Value src, mlir::RankedTensorType targetType) {
+        auto srcType = mlir::cast<mlir::RankedTensorType>(src.getType());
+        int64_t rank = srcType.getRank();
+        // low[i] = 0 for all dims
+        // high[i]  = targetDim - srcDim
+        llvm::SmallVector<mlir::OpFoldResult> low(rank, builder.getIndexAttr(0));
+        llvm::SmallVector<mlir::OpFoldResult> high;
+        for (int64_t i = 0; i < rank; ++i)
+            high.push_back(builder.getIndexAttr(targetType.getDimSize(i) - srcType.getDimSize(i)));
+        auto padOp = builder.create<mlir::tensor::PadOp>(loc, targetType, src, low, high);
+        // tensor.pad requires a fill region
+        // InsertionGuard saves the builder's current insertion point and restores it when
+        // guard goes out of scope. 
+        mlir::OpBuilder::InsertionGuard guard(builder);
+        mlir::Block *block = builder.createBlock(&padOp.getRegion());
+        for (int64_t i = 0; i < rank; ++i)
+             block->addArgument(builder.getIndexType(), loc);
+
+        // Fill Zeros in the tensor's element type
+        mlir::Type elemType = srcType.getElementType();
+        mlir::Value zero;
+        if (mlir::isa<mlir::FloatType>(elemType))
+            zero = builder.create<mlir::arith::ConstantOp>(loc, builder.getFloatAttr(elemType, 0.0));
+        else
+             zero = builder.create<mlir::arith::ConstantOp>(loc, builder.getIntegerAttr(elemType, 0));
+        builder.create<mlir::tensor::YieldOp>(loc, zero);
+        return padOp.getResult();
+    }
+
+    // Builds tensor.extract_slice that strips padding, returning resultType from src
+    static mlir::Value buildSlice(mlir::OpBuilder &builder, mlir::Location loc, mlir::Value src,
+                                  mlir::RankedTensorType resultType) {
+        int64_t rank = resultType.getRank();
+        // offsets[i] = 0, the valid data lives at the start of every dimensions.
+        // sizes[i] = resultType.getDimSize(i), the original unpadded extent.
+        // strides[i] = 1, no skipping, contiguous slice.
+        llvm::SmallVector<mlir::OpFoldResult> offsets(rank, builder.getIndexAttr(0));
+        llvm::SmallVector<mlir::OpFoldResult> sizes;
+        for (int64_t i = 0; i < rank; ++i)
+            sizes.push_back(builder.getIndexAttr(resultType.getDimSize(i)));
+        llvm::SmallVector<mlir::OpFoldResult> strides(rank, builder.getIndexAttr(1));
+
+        return builder.create<mlir::tensor::ExtractSliceOp>(
+            loc, resultType, src, offsets, sizes, strides
+        );
+    }
+
 };
-} // namespace
+
+// Generic conversion pattern for seki dps whose only change is that their result types
+// need to be widened to tile-aligned shapes.
+template<typename OpTy>
+struct SekiTypeUpdatePattern : mlir::OpConversionPattern<OpTy> {
+    using mlir::OpConversionPattern<OpTy>::OpConversionPattern;
+    // Example 1:
+    // Before this IR pattern fires:
+    // %X : tensor<100x500xbf16>
+    // %W1 : tensor<500x256xbf16>
+    // %acc1: tensor<100x256xf32>
+    // %H = seki.matmul ins(%X, %W1)  outs(acc1) -> tensor<100x256xf32>
+    // %Hact = seki.ew_unary<relu> %H : tensor<100x256xf32>
+    // return %Hact : tensor<100x256xf32> 
+    // After this IR pattern fires:
+    // %X_pad = tensor.pad %X ... : tensor<128x512xbf16>
+    // %W_pad = tensor.pad %X ... : tensor<512x256xbf16>
+    // %acc1_pad = tensor.pad %acc1 ... : tensor<128x256xf32>
+    // %H = seki.matmul ins(%X_pad, %W1_pad) outs(%acc2_pad) -> tensor<128x256xf32> 
+    // %Hact = seki.ew_unary<relu> %H : tensor<100x256xf32>
+    // %strip = tensor.extract_slice %Hact[0,0][100, 256][1, 1]: tensor<100x256xf32>
+    // return %strip : tensor<100x256xf32> 
+    mlir::LogicalResult matchAndRewrite(
+        OpTy op,
+        typename mlir::OpConversionPattern<OpTy>::OpAdaptor adaptor,
+        mlir::ConversionPatternRewriter &rewriter) const override {
+        // Ask the TypeConverter what the result types should be after conversion.
+        // convertTypes walks op->getResultTypes() and calls addConversion for each.
+        // E.g. tensor<100x256xf32> this returns tensor>128x256xf32> 
+        llvm::SmallVector<mlir::Type> newTypes;
+        if (mlir::failed(this->typeConverter->convertTypes(op->getResultTypes(), newTypes)))
+            return mlir::failure();
+        // Recreate the op with:
+        //     newTypes              - the padded result types
+        //     adaptor.getOperands() - operands already materialised to padded types
+        //     op->getAttrs()        - all attributes preserved unchanged
+        // E.g. Creates: %H = seki.matmul ins(%X_pad, %W1_pad, %acc1_pad) outs(%acc2_pad) -> tensor<128x256xf32>
+        // Replaces all uses of old %H (tensor<100x256xf32)  with new %H (tensor<128x256xf32>)
+        rewriter.replaceOpWithNewOp<OpTy>(op, newTypes, adaptor.getOperands(), op->getAttrs());
+        return mlir::success();
+    }
+
+};
 
 struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadToTileBoundaryPass> {
     using SekiPadToTileBoundaryPassBase::SekiPadToTileBoundaryPassBase;
@@ -92,7 +204,7 @@ struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadTo
                 // Set result's type to C's result type due to DPS
                 auto paddedResultType = mlir::cast<mlir::RankedTensorType>(newC.getType());
                 op->getResult(0).setType(paddedResultType);
-                
+
                 // Insert tensor.extract_slice after the matmul to strip the M/N padding
                 builder.setInsertionPointAfter(op);
                 auto origResultType = mlir::cast<mlir::RankedTensorType>(matmul.getResult.getType())
@@ -102,3 +214,4 @@ struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadTo
 
 };
 }
+} // namespace
