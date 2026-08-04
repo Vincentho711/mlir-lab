@@ -158,6 +158,28 @@ struct SekiTypeUpdatePattern : mlir::OpConversionPattern<OpTy> {
 
 };
 
+// Dedicated pattern for tensor.empty
+// tensor.empty creates uninitialised buffer which is the standard way to allocate
+// DPS `outs` operand for seki.matmul / seki.batch_matmul.
+// tensor.empty has no generate (TypeRange, ValueRange, NamedAttrList) builder
+// Its builder signature is (ArrayRef<int64_t> staticShape, Type elementType, ValueRange dynamicSizes).
+// we have a special conversion pattern for it
+struct EmptyOpConversionPattern : mlir::OpConversionPattern<mlir::tensor::EmptyOp> {
+    using mlir::OpConversionPattern<mlir::tensor::EmptyOp>::OpConversionPattern;
+    mlir::LogicalResult matchAndRewrite(mlir::tensor::EmptyOp op, mlir::OpConversionPattern<mlir::tensor::EmptyOp>::OpAdaptor adaptor,
+                                        mlir::ConversionPatternRewriter &rewriter) const override {
+        // convertTypes applies the addConversion rule for a single type.
+        // E.g. tensor<100x256xf32> -> tensor<128x256xf32> 
+        mlir::Type newType = this->typeConverter->convertType(op.getType());
+        if (!newType)
+            return mlir::failure();
+        auto paddedType = mlir::cast<mlir::RankedTensorType>(newType);
+        // Replace with a tensor empty of the padded shape, no operands, no attributes.
+        rewriter.replaceOpWithNewOp<mlir::tensor::EmptyOp>(op, paddedType.getShape(), paddedType.getElementType());
+        return mlir::success();
+    }
+};
+
 struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadToTileBoundaryPass> {
     using SekiPadToTileBoundaryPassBase::SekiPadToTileBoundaryPassBase;
 
