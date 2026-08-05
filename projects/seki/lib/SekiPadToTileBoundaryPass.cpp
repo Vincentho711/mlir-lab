@@ -190,50 +190,62 @@ struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadTo
         mlir::seki::SekiTargetInfo info(mod);
         if (!info.hasMACArray())
             return;
-        int64_t tile = info.getMACRows();
-        mlir::OpBuilder builder(mod.getContext());
+        int64_t tileRows = info.getMACRows();
+        int64_t tileCols = info.getMACCols();
 
-        mod.walk([&])(mlir::Operation *op) {
-            // Only pad matmul-family ops
-            if (!mlir::isa<mlir::seki::MatmulOp, mlir::seki::BatchMatmulOp>(op))
-                return;
-            builder.setInsertionPoint(op);
-            mlir::Location loc = op->getLoc();
-            
-            if (auto matmul = mlir::dyn_cast<mlir::seki::MatmulOp>(op)) {
-                // Save the original shapes before any rewiring
-                auto origAType = mlir::cast<mlir::RankedTensorType>(matmul.getA().getType());
-                auto origCType = mlir::cast<mlir::RankedTensorType>(matmul.getC().getType());
-                int64_t origM = origAType.getDimSize(0);  // rows of A = rows of result
-                int64_t origN = origCType.getDimSize(1);  // cols of C = cols of result
-                // seki.matmul: A is [M, K], B is [K, N], C/result is [M, N]
-                // Pad all dims of A, both M and K, as well as all dims of B, both K and N
-                mlir::Value newA = padTensor(builder, loc, matmul.getA(), {0, 1}, tile);
-                mlir::Value newB = padTensor(builder, loc, matmul.getB(), {0, 1}, tile);
+        SekiPadTypeConverter typeConverter(tileRows, tileCols);
 
-                // Check if we padded, if not, no rewiring is needed
-                if (newA == matmul.getA() && newB == matmul.getB())
-                    return;
+        // Describe what IR is legal after conversion.
+        // ConversionTarget has 3 possible legality states for any op:
+        // 1. Always legal, ops that are registered with addLegalOp<>, framework
+        // never tries to convert them.
+        // 2. Always illegal, ops that are registered with addIllegalOp<>, framework always
+        // tries to convert them, false if no pattern matches.
+        // Dynamically legal, legality is decidef at runtime by calling a predicate
+        // on the actual op instance. It returns true when typeConverter.isLegal(op) returns
+        // true due to every one of its operands and result is already a legal type,
+        // i.e. it is already tile-aligned after the converter's addConversion() rule has
+        // been applied as identify. If isLegal() returns false, that means tensor is not
+        // tile-aligned and SekiTypeUpdatePattern fires to update it.
+        mlir::ConversionTarget target(getContext());
+        target.addLegalOp<mlir::ModuleOp, mlir::func::FuncOp>();
+        // reshape op is marked legal as the converter inserts tensor.pad at
+        // at its consumer edge if the reshape op is not tile-aligned.
+        target.addLegalOp<mlir::seki::ReshapeOp>();
+        // Ops inserted by the framework's materialisation step is marked legal cause
+        // they have mixed types. e.g. tensor.pad takes an unpadded source and produces
+        // a padded result, so isLegal() would return false, and framework will try to
+        // convert them even though they were just inserted by the materialisation step.
+        target.addLegalOp<mlir::tensor::PadOp, mlir::tensor::ExtractSliceOp, mlir::tensor::YieldOp,
+                          mlir::arith::ConstantOp>();
+        // For all other remaining ops, legality is decidef at runtime by calling predicate on
+        // the actual op.
+        target.markUnknownOpDynamicallyLegal([&](mlir::Operation *op) { return typeConverter.isLegal(op); });
 
-                // Pad C, it must match the padded M and N of A and B.
-                mlir::Value newC = padTensor(builder, loc, matmul.getC(), {0, 1}, tile);
+        // Populate conversion patterns with op that needs to be converted
+        // Mainly ops that operate with tensors.
+        mlir::RewritePatternSet patterns(&getContext());
+        patterns.add<SekiTypeUpdatePattern<mlir::seki::MatmulOp>,
+                     SekiTypeUpdatePattern<mlir::seki::BatchMatmulOp>,
+                     SekiTypeUpdatePattern<mlir::seki::EwUnaryOp>,
+                     SekiTypeUpdatePattern<mlir::seki::EwBinaryOp>,
+                     SekiTypeUpdatePattern<mlir::seki::CastOp>,
+                     EmptyOpConversionPattern>(typeConverter, &getContext());
+        // Adds a pattern that rewires func.return operands to the original function return types.
+        // triggering target materialisation (tensor.extract_slice) for any padded values being returned.
+        mlir::populateReturnOpTypeConversionPattern(patterns, typeConverter);
 
-                // Rewire the matmul to use padded operands
-                op->setOperand(0, newA);
-                op->setOperand(0, newB);
-                op->setOperand(0, newC);
-
-                // Set result's type to C's result type due to DPS
-                auto paddedResultType = mlir::cast<mlir::RankedTensorType>(newC.getType());
-                op->getResult(0).setType(paddedResultType);
-
-                // Insert tensor.extract_slice after the matmul to strip the M/N padding
-                builder.setInsertionPointAfter(op);
-                auto origResultType = mlir::cast<mlir::RankedTensorType>(matmul.getResult.getType())
-            }
-        }
-    }
+        // Freeze the patterns so it is immutable.
+        mlir::FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+        // Apply the conversion per function
+        mlir::WalkResult walkResult = mod.walk([&](mlir::func::FuncOp func) -> mlir::WalkResult {
+            if (mlir::failed(mlir::applyPartialConversion(func, target, frozenPatterns)))
+                return mlir::WalkResult::interrupt();
+            return mlir::WalkResult::advance();
+        });
+        if (walkResult.wasInterrupted())
+            signalPassFailure();
+  }
 
 };
-}
 } // namespace
