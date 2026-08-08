@@ -34,25 +34,23 @@ struct SekiPadTypeConverter : mlir::TypeConverter {
             return mlir::RankedTensorType::get(shape, t.getElementType());
         });
 
-        // Source materialisation, called when it needs to produce a padded value from
-        // an original-type value.
-        // Files at every function argument use site where a converted op expects the padded type. 
+        // Source materialisation: padded -> original.
+        // Fires at func return. Inserts tensor.extract_slice to strip padding back to ABI shape 
         addSourceMaterialization([](mlir::OpBuilder &builder, mlir::RankedTensorType resultType, 
-                                    mlir::ValueRange inputs, mlir::Location loc) -> std::optional<mlir::Value>{
+                                    mlir::ValueRange inputs, mlir::Location loc) -> mlir::Value{
             if (inputs.size() != 1)
-                return std::nullopt;
-            return buildPad(builder, loc, inputs[0], resultType);
+                return mlir::Value{};
+            return buildSlice(builder, loc, inputs[0], resultType);
         });
 
-        // Target materialisation, called when it needs to produce an orignal-type value
-        // from a padded value, fires at func.return where the function signature expects the original 
-        // unpadded type. 
-        // Inserts: tensor.extract_slice %padded[0, ...][originalSizes][1, ...]
+        // Target materialisation: orignal -> padded.
+        // Fires at function argument use sites
+        // Inserts: tensor.pad to widen the original tensor to the tile-aligned shape.
         addTargetMaterialization([](mlir::OpBuilder &builder, mlir::RankedTensorType resultType,
-                                    mlir::ValueRange inputs, mlir::Location loc) -> std::optional<mlir::Value> {
+                                    mlir::ValueRange inputs, mlir::Location loc) -> mlir::Value {
             if (inputs.size() != 1)
-                return std::nullopt;
-            return buildSlice(builder, loc, inputs[0], resultType);
+                return mlir::Value{};
+            return buildPad(builder, loc, inputs[0], resultType);
         });
     }
 private:
@@ -75,7 +73,7 @@ private:
         llvm::SmallVector<mlir::OpFoldResult> high;
         for (int64_t i = 0; i < rank; ++i)
             high.push_back(builder.getIndexAttr(targetType.getDimSize(i) - srcType.getDimSize(i)));
-        auto padOp = builder.create<mlir::tensor::PadOp>(loc, targetType, src, low, high);
+        auto padOp = mlir::tensor::PadOp::create(builder, loc, targetType, src, low, high);
         // tensor.pad requires a fill region
         // InsertionGuard saves the builder's current insertion point and restores it when
         // guard goes out of scope. 
@@ -88,10 +86,10 @@ private:
         mlir::Type elemType = srcType.getElementType();
         mlir::Value zero;
         if (mlir::isa<mlir::FloatType>(elemType))
-            zero = builder.create<mlir::arith::ConstantOp>(loc, builder.getFloatAttr(elemType, 0.0));
+            zero = mlir::arith::ConstantOp::create(builder, loc, builder.getFloatAttr(elemType, 0.0));
         else
-             zero = builder.create<mlir::arith::ConstantOp>(loc, builder.getIntegerAttr(elemType, 0));
-        builder.create<mlir::tensor::YieldOp>(loc, zero);
+             zero = mlir::arith::ConstantOp::create(builder, loc, builder.getIntegerAttr(elemType, 0));
+        mlir::tensor::YieldOp::create(builder, loc, zero);
         return padOp.getResult();
     }
 
@@ -108,8 +106,8 @@ private:
             sizes.push_back(builder.getIndexAttr(resultType.getDimSize(i)));
         llvm::SmallVector<mlir::OpFoldResult> strides(rank, builder.getIndexAttr(1));
 
-        return builder.create<mlir::tensor::ExtractSliceOp>(
-            loc, resultType, src, offsets, sizes, strides
+        return mlir::tensor::ExtractSliceOp::create(
+            builder, loc, resultType, src, offsets, sizes, strides
         );
     }
 
@@ -209,6 +207,16 @@ struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadTo
         // tile-aligned and SekiTypeUpdatePattern fires to update it.
         mlir::ConversionTarget target(getContext());
         target.addLegalOp<mlir::ModuleOp, mlir::func::FuncOp>();
+        // func.return needs its own legality predice, not typeConverter.isLegal().
+        // typeConverter.isLegal() would return true for tile aligned shapes, so 
+        // it would never trigger populateReturnOpTypeConversionPattern. 
+        // Instead we check whether the return operand type match the parent function's declared 
+        // result type. If not, operand is padded, function says original, the return is illegal 
+        // and the pattern fires to insert tensor.extract_slice. 
+        target.addDynamicallyLegalOp<mlir::func::ReturnOp>([](mlir::func::ReturnOp op){
+            auto func = op->getParentOfType<mlir::func::FuncOp>();
+            return func.getResultTypes() == op.getOperandTypes();
+        });
         // reshape op is marked legal as the converter inserts tensor.pad at
         // at its consumer edge if the reshape op is not tile-aligned.
         target.addLegalOp<mlir::seki::ReshapeOp>();
