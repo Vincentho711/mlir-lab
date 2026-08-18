@@ -50,3 +50,35 @@ func.func @mlp_ew_propagation(%A: tensor<100x500xbf16>, %B: tensor<500x256xbf16>
     %relu = seki.ew_unary<relu> %r: tensor<100x256xf32>
     return %relu : tensor<100x256xf32>
 }
+
+// Test 4: batch_matmul, batch dimension must not be padded
+// CHECK-LABEL: func.func @batch_matmul_batch_dim_preserved
+// CHECK-DAG:   } : tensor<4x100x500xbf16> to tensor<4x128x512xbf16>
+// CHECK-DAG:   } : tensor<4x500x256xbf16> to tensor<4x512x256xbf16>
+// CHECK-DAG:   } : tensor<4x100x256xf32> to tensor<4x128x256xf32>
+// CHECK:       seki.batch_matmul ins({{.*}} : tensor<4x128x512xbf16>, tensor<4x512x256xbf16>)
+// CHECK-SAME:                    outs({{.*}} : tensor<4x128x256xf32>) -> tensor<4x128x256xf32>
+// CHECK:       tensor.extract_slice {{.*}} : tensor<4x128x256xf32> to tensor<4x100x256xf32>
+// CHECK:       return {{.*}} : tensor<4x100x256xf32>
+func.func @batch_matmul_batch_dim_preserved(%A: tensor<4x100x500xbf16>, %B: tensor<4x500x256xbf16>,
+                                            %C: tensor<4x100x256xf32>) -> tensor<4x100x256xf32> {
+    %r = seki.batch_matmul ins(%A, %B: tensor<4x100x500xbf16>, tensor<4x500x256xbf16>)
+                           outs(%C: tensor<4x100x256xf32>) -> tensor<4x100x256xf32>
+    return %r : tensor<4x100x256xf32>
+}
+
+//Test 5: no target attached, pass is unconditionally a no-op
+// Without --seki-attach-target, the module carries no #seki.target<> attribute.
+// hasMACArray() returns false and runOnOperation() returns immediately.
+// The IR must be byte-for-byte identical to the input.
+
+// NO-TARGET-LABEL: func.func @no_target_no_op
+// NO-TARGET-NOT:   tensor.pad
+// NO-TARGET:       seki.matmul ins({{.*}} : tensor<100x500xbf16>, tensor<500x256xbf16>)
+// NO-TARGET-NOT:   tensor.extract_slice
+func.func @no_target_no_op(%A: tensor<100x500xbf16>, %B: tensor<500x256xbf16>,
+                            %C: tensor<100x256xf32>) -> tensor<100x256xf32> {
+    %r = seki.matmul ins(%A, %B : tensor<100x500xbf16>, tensor<500x256xbf16>)
+                     outs(%C : tensor<100x256xf32>) -> tensor<100x256xf32>
+    return %r : tensor<100x256xf32>
+}
