@@ -82,3 +82,23 @@ func.func @no_target_no_op(%A: tensor<100x500xbf16>, %B: tensor<500x256xbf16>,
                      outs(%C : tensor<100x256xf32>) -> tensor<100x256xf32>
     return %r : tensor<100x256xf32>
 }
+
+// Test 6, seki.reshape acts as a type-propagation barrier, the framework doesn't
+// convert it, so padding is not added before the seki.reshape.
+// CHECK-LABEL: func.func @reshape_barrier
+// CHECK-NOT: } : tensor<2x100x500xbf16> -> tensor<2x128x512xbf16>
+// CHECK-DAG: } : tensor<500x256xbf16> to tensor<512x256xbf16>
+// CHECK-DAG: } : tensor<200x256xf32> to tensor<256x256xf32>
+// CHECK: seki.reshape {{.*}} : tensor<2x100x500xbf16> -> tensor<200x500xbf16>
+// CHECK: } : tensor<200x500xbf16> to tensor<256x512xbf16>
+// CHECK: seki.matmul ins({{.*}} : tensor<256x512xbf16>, tensor<512x256xbf16>)
+// CHECK-SAME: outs({{.*}} : tensor<256x256xf32>) -> tensor<256x256xf32>
+// CHECK: tensor.extract_slice {{.*}} : tensor<256x256xf32> to tensor<200x256xf32>
+// CHECK: return {{.*}} : tensor<200x256xf32>
+func.func @reshape_barrier(%A: tensor<2x100x500xbf16>, %B: tensor<500x256xbf16>,
+                           %C: tensor<200x256xf32>) -> tensor<200x256xf32> {
+    %reshaped = seki.reshape %A : tensor<2x100x500xbf16> -> tensor<200x500xbf16>
+    %r = seki.matmul ins(%reshaped, %B : tensor<200x500xbf16>, tensor<500x256xbf16>)
+                     outs(%C : tensor<200x256xf32>) -> tensor<200x256xf32>
+    return %r : tensor<200x256xf32>
+}

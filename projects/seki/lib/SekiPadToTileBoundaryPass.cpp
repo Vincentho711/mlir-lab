@@ -238,6 +238,7 @@ struct SekiPadToTileBoundaryPass : impl::SekiPadToTileBoundaryPassBase<SekiPadTo
                      SekiTypeUpdatePattern<mlir::seki::EwUnaryOp>,
                      SekiTypeUpdatePattern<mlir::seki::EwBinaryOp>,
                      SekiTypeUpdatePattern<mlir::seki::CastOp>,
+                     SekiTypeUpdatePattern<mlir::seki::TransposeOp>,
                      EmptyOpConversionPattern>(typeConverter, &getContext());
         // Adds a pattern that rewires func.return operands to the original function return types.
         // triggering target materialisation (tensor.extract_slice) for any padded values being returned.
