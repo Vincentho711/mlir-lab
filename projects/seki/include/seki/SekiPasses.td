@@ -116,4 +116,16 @@ def SekiPadToTileBoundaryPass : Pass<"seki-pad-to-tile-boundary", "::mlir::Modul
     ];
 }
 
+def SekiFuseOpsPass : Pass<"seki-fuse-ops", "::mlir::func::FuncOp"> {
+    let summary = "Fuse structural op patterns into single ops before tiling";
+    let description = [{
+        Applies fusion rewrite patterns to each function in the module.
+        E.g. Folds seki.transpose (B-operand only) + seki.matmul into seki.matmul {
+        transpose_b}, eliminating the intermediate transposed tile.
+        Epilogue fusion patterns will be extended in this pass too. Must run after
+        --seki-pad-to-tile-boundary and before --seki-tile-ops.
+    }];
+    let dependentDialects = ["::mlir::seki::SekiDialect"];
+}
+
 #endif // SEKI_PASSES_TD
