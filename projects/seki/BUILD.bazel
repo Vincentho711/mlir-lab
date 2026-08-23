@@ -154,9 +154,12 @@ cc_library(
         "lib/SekiCastToTargetTypesPass.cpp",
         "lib/SekiCheckHwUnitsPass.cpp",
         "lib/SekiPadToTileBoundaryPass.cpp",
+        "lib/SekiFusionPatterns.cpp",
+        "lib/SekiFuseOpsPass.cpp",
     ],
     hdrs = [
         "include/seki/SekiPasses.h",
+        "include/seki/SekiFusionPatterns.h"
     ],
     includes = ["include"],
     deps = [

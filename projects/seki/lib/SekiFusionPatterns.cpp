@@ -23,11 +23,6 @@ struct TransposeMatmulFusionPattern : OpRewritePattern<MatmulOp> {
         if (!B.hasOneUse())
             return failure();
 
-        // Build the attribute list by copying all existing matmul attributes
-        // and add transpose_b = unit.
-        mlir::NamedAttrList attrs(op->getAttrs());
-        attrs.set(rewriter.getStringAttr("transpose_b"), rewriter.getUnitAttr());
-
         // Replace with a new matmul whose B operand is the transpose's input.
         // seki.tranpose gets eliminated 
         rewriter.replaceOpWithNewOp<MatmulOp>(
@@ -36,7 +31,7 @@ struct TransposeMatmulFusionPattern : OpRewritePattern<MatmulOp> {
             op.getA(),                // A operand unchanged
             transposeOp.getInput(),   // B operand: bypass the transpose
             op.getC(),                // C operand unchanged
-            attrs.getDictionary(rewriter.getContext())
+            rewriter.getUnitAttr()     // transpose_b
         );
         return success();
     }
