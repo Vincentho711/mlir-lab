@@ -6,6 +6,7 @@ include "seki/SekiAttrs.td"
 include "seki/SekiInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/DestinationStyleOpInterface.td"
 
 //===-----------------------------------------------===//
@@ -127,6 +128,39 @@ def Seki_CastOp: SekiOp<"cast", [Pure]> {
     let results = (outs AnyRankedTensor:$output);
     let assemblyFormat = "$input attr-dict `:` type($input) `->` type($output)";
     let hasVerifier = 1;
+}
+
+def Seki_FusedComputationOp: SekiOp<"fused_computation", [
+    Pure,
+    // Region body can only reference its own block args and internal SSA.
+    // External tensors must be passed as $inputs and mapped to block arguments. 
+    IsolatedFromAbove,
+    // Exactly one basic block, no branches or loops inside region.
+    // Tiling loops live outside, hence region body is always straight line.
+    SingleBlock
+]> {
+    let summary = "A fused group of ops sharing one scratchpad tile";
+    let arguments = (ins Variadic<AnyTensor>:$inputs);
+    let results = (outs AnyTensor:$output);
+    // SizeRegion<1> enforces the SingleBlock constraint
+    let regions = (region SizedRegion<1>:$body);
+    let assemblyFormat = [{
+        `(` $inputs `:` type($inputs) `)` `->` type($output) $body attr-dict
+    }];
+    let hasVerifier = 1;
+}
+
+def Seki_YieldOp: SekiOp<"yield", [
+    // Terminator: this op ends a basic block (like func.return or scf.yield).
+    Terminator,
+    // ReturnLike: tells the canonicalizer this op "returns" a value from its enclosing region
+    // Enabling region-level folding and inlining optimisations.
+    Pure,
+    ReturnLike
+]> {
+    let summary = "Yield the result tensor out of a seki.fused_computation region";
+    let arguments = (ins AnyTensor:$value);
+    let assemblyFormat = "$value attr-dict `:` type($value)";
 }
 
 #endif // SEKI_OPS_TD

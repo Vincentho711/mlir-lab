@@ -32,6 +32,7 @@ td_library(
         "@llvm-project//mlir:SideEffectInterfacesTdFiles",
         "@llvm-project//mlir:InferTypeOpInterfaceTdFiles",
         "@llvm-project//mlir:DestinationStyleOpInterfaceTdFiles",
+        "@llvm-project//mlir:ControlFlowInterfacesTdFiles",
     ]
 )
 
@@ -135,6 +136,7 @@ cc_library(
         "@llvm-project//mlir:BytecodeOpInterface",
         "@llvm-project//mlir:InferTypeOpInterface",
         "@llvm-project//mlir:DestinationStyleOpInterface",
+        "@llvm-project//mlir:ControlFlowInterfaces",
     ],
     visibility = ["//visibility:public"],
 
