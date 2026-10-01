@@ -274,4 +274,26 @@ mlir::LogicalResult CastOp::verify() {
     return mlir::success();
 }
 
+mlir::LogicalResult mlir::seki::FusedComputationOp::verify() {
+    mlir::Block &body = getBody().front();
+
+    // block args must match inputs 1:1 in count and type
+    if (body.getNumArguments() != getInputs().size())
+        return emitOpError("body block argument count (")
+              << body.getNumArguments() << ") does not match input count ("
+              << getInputs().size() << ")";
+
+    for (auto [idx, arg, input] : llvm::enumerate(body.getArguments(), getInputs())) {
+        if (arg.getType() != input.getType())
+            return emitOpError("body block argument ") << idx << " type " << arg.getType()
+                << " does not match input type " << input.getType();
+    }
+
+    // single block must be terminated by seki.yield
+    if (!mlir::isa<YieldOp>(body.getTerminator()))
+        return emitOpError("body must be terminated by seki.yield");
+
+    return mlir::success();
+}
+
 } // namespace mlir::seki
