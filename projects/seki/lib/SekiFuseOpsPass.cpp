@@ -19,6 +19,8 @@ struct SekiFuseOpsPass : impl::SekiFuseOpsPassBase<SekiFuseOpsPass> {
 
         // Fold seki.transpose (B-operand) + seki.matmul -> seki.matmul {transpose_b}
         mlir::seki::populateTransposeMatmulFusionPatterns(patterns);
+        // Fuse matmul + single-op epilogue into seki.fused_computation
+        mlir::seki::populateSingleOpEpilogueFusionPatterns(patterns);
 
         // applyPatternsGreedily runs all patterns to a fixed point
         if (mlir::failed(mlir::applyPatternsGreedily(func, std::move(patterns))))
