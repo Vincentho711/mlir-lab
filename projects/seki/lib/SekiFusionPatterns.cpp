@@ -41,93 +41,128 @@ void populateTransposeMatmulFusionPatterns(RewritePatternSet &patterns) {
     patterns.add<TransposeMatmulFusionPattern>(patterns.getContext());
 }
 
-// Fuses a single-op epilogue into a seki.fused_computation region:
-//   %t = seki.matmul ins(%A, %B) outs(%C) -> T
-//   %r = seki.ew_unary<fn> %t : T
-// becomes:
-//   %r = seki.fused_computation(%A, %B, %C : ...) -> T {
-//   ^bb0(%a, %b, %c):
-//     %t = seki.matmul ins(%a, %b) outs(%c) -> T
-//     %rr = seki.ew_unary<fn> %t : T
-//     seki.yield %tt : T
-//   }
-struct SingleOpEpilogueFusionPattern : OpRewritePattern<EwUnaryOp> {
-    using OpRewritePattern<EwUnaryOp>::OpRewritePattern;
+// Fuses a matmul and its chain of single-use elementwise consumers into one
+// seki.fused_computation region. Grows by 1 op per pattern firing, applyPatternsGreedily's
+// fixed point handles chain of any length.
+struct EpilogueFusionPattern : OpInterfaceRewritePattern<SekiEwFnOpInterface> {
+    using OpInterfaceRewritePattern<SekiEwFnOpInterface>::OpInterfaceRewritePattern;
 
-    LogicalResult matchAndRewrite(EwUnaryOp op, PatternRewriter &rewriter) const override {
-        // Never fuse inside an existing fused_computation region, groups are flat by design.
-        // Without this, applyPatternsGreedily revists the cloned ops inside the newly created region and
-        // fires the pattern again, nesting the fused_computation ops infinitely.
+    LogicalResult matchAndRewrite(SekiEwFnOpInterface op, PatternRewriter &rewriter) const override {
+        // Guard: never fuse an op that's already inside a fused_computation region.
         if (op->getParentOfType<FusedComputationOp>())
             return failure();
-
-        // Input must come from seki.matmul
-        auto matmulOp = op.getInput().getDefiningOp<MatmulOp>();
-        if (!matmulOp)
+        // Exactly one operand must be the chain predecesser. All other operands are "extra",
+        // new values the group must additionally cosume (e.g. the bias tensor feeding a binary add).
+        Value chainOperand;
+        llvm::SmallVector<Value> extraOperands;
+        for (Value operand : op->getOperands()) {
+            if (isChainOperand(operand)) {
+                if (chainOperand)
+                    return failure(); // ambiguous: if there is already a chainOperand from an already-fused chain, we don't process the next.
+                chainOperand = operand;
+            } else {
+                extraOperands.push_back(operand);
+            }
+        }
+        if (!chainOperand)
             return failure();
 
-        // Closed group condition guard: matmul result has exactly one use (this ew_unary).
-        // If it escaped to a second consumer, fusing would silently drop that consumer's input.
-        if (!matmulOp.getResult().hasOneUse())
-            return failure();
+        // Classify the chain's predecesser, from a matmul or absorb into an existing group.
+        // Both branches build the same way.
+        llvm::SmallVector<Value> groupInputs;
+        llvm::SmallVector<Operation *> bodyOps;
 
-        // The fusion group's external inputs are the mamul's three operands.
-        llvm::SmallVector<Value> inputs = {matmulOp.getA(), matmulOp.getB(), matmulOp.getC()};
+        Operation *predDefOp = chainOperand.getDefiningOp();
+        if (auto matmulOp = mlir::dyn_cast<MatmulOp>(predDefOp)) {
+            // No existing group, the matmul itself becomes the first body op of the fused_computation.
+            groupInputs = {matmulOp.getA(), matmulOp.getB(), matmulOp.getC()};
+            bodyOps.push_back(matmulOp);
+        } else if (auto groupOp = mlir::dyn_cast<FusedComputationOp>(predDefOp)) {
+            // Absorb, there is already a return from a fused_computation op, hence we can reuse.
+            groupInputs.assign(groupOp.getInputs().begin(), groupOp.getInputs().end());
+            for (Operation &bodyOp : groupOp.getBody().front().without_terminator()) // without_terminator() iterates every op in the block except the last one.
+                bodyOps.push_back(&bodyOp);
+        } else {
+            // isChainOperand should only permit these 2 case, so this is unreachable.
+            return failure();
+        }
+
+        // Resolve each extra operand, and fold them into groupInputs.
+        // Each operand is either produced by a single-use seki.broadcast -> absorb the broadcast into the body too, and use its input (the raw bias) as group input.
+        // Or each oeprand is anything else -> pass it through unchanged as a new group input.
+        for (Value extra: extraOperands) {
+            if (auto broadcastOp = extra.getDefiningOp<BroadcastOp>(); broadcastOp && extra.hasOneUse()) {
+                bodyOps.push_back(broadcastOp);
+                groupInputs.push_back(broadcastOp.getInput());
+            } else {
+                groupInputs.push_back(extra);
+            }
+        }
+        // This op iteself joins the group as the last body op.
+        bodyOps.push_back(op);
+
+        // BUild the new group: a fresh FusedComputationOp whose block argumnts corespond 1:1 with groupInputs, containing
+        // every body op in order, terminated by seki.yield. 
         llvm::SmallVector<Type> inputTypes;
-        for (Value v: inputs)
+        for (Value v : groupInputs)
             inputTypes.push_back(v.getType());
 
-        // Create the region op. Its result type is the ew_unary's result type
         auto fused = FusedComputationOp::create(
-            rewriter, op.getLoc(), op.getResult().getType(), inputs
+            rewriter, op->getLoc(), op->getResult(0).getType(), groupInputs
         );
 
-        // Build the single block with block arguments %a, %b, %c with the same types as %A, %B, %C.
         Block *block = rewriter.createBlock(&fused.getBody());
         for (Type t : inputTypes)
-            block->addArgument(t, op.getLoc());
+            block->addArgument(t, op->getLoc());
 
+        // Seed the mapping with outer values -> new block args.
+        IRMapping mapping;
         // IRMapping: outer values (%A, %B, %C) -> block arguments (%a, %b, %c).
         // Cloning the matmul with this mapping rewires its operands automatically
         // %A -> %a, %B -> %b, %C -> %c
-        IRMapping mapping;
-        for (auto [outer, arg] : llvm::zip(inputs, block->getArguments()))
+        for (auto [outer, arg] : llvm::zip(groupInputs, block->getArguments()))
             mapping.map(outer, arg);
 
+        // Absort case onlu, the reused body ops reference the old block's arugments, a different set of
+        // Value objects from groupInputs. Map them positionally onto the same new block args.
+        if (auto groupOp = mlir::dyn_cast<FusedComputationOp>(predDefOp)) {
+            // Get the existing block
+            Block &oldBlock = groupOp.getBody().front();
+            for (auto [oldArg, newArg] : llvm::zip(oldBlock.getArguments(), block->getArguments()))
+                mapping.map(oldArg, newArg);
+        }
+
         rewriter.setInsertionPointToStart(block);
-        // The original matmul's operands are %A, %B, %c. clone() looks each on up in mapping, finds all three,
-        // and subsitutes them.  The clone becomes:
-        // %t' = seki.matmul ins(%a, %b: T1, T2) outs(%c: T3) -> T3
-        Operation *clonedMatmul = rewriter.clone(*matmulOp, mapping);
-        // Map the matmul's old result to the clone's result, so cloning the ew_unary next picks up
-        // the in-region matmul output.
-        // This adds the rule %t -> %t'. Without this, the next clone step would fail to find %t in the mapping and
-        // keep pointing at the original outer %t, which lives outside the region.
-        mapping.map(matmulOp.getResult(), clonedMatmul->getResult(0));
-        // clone the current ew_unary operand. %r' = seki.ew_unary<relu> %t' : T3
-        Operation *clonedEwUnary = rewriter.clone(*op, mapping);
+        Operation *lastCloned = nullptr;
+        for (Operation *bodyOp : bodyOps) {
+            lastCloned = rewriter.clone(*bodyOp, mapping);
+            // Map this op's old result to its clone's result so the next
+            // body op (which may consume it) picks up the in-region value.
+            mapping.map(bodyOp->getResult(0), lastCloned->getResult(0));
+        }
 
-        // Terminates the block with seki.yield %r' : T3
-        YieldOp::create(rewriter, op.getLoc(), clonedEwUnary->getResult(0));
+        YieldOp::create(rewriter, op->getLoc(), lastCloned->getResult(0));
 
-        // End state inside the region
-        // ^bb0(%a: T1, %b: T2, %c: T3):
-        //   %t' = seki.matmul ins(%a, %b : T1, T2) outs(%c : T3) -> T3
-        //   %r' = seki.ew_unary<relu> %t' : T3
-        //   seki.yield %r' : T3
-
-        // Replace the original ew_unary with the fused region's result.
+        // Replace the original op's result with the group's result.
         rewriter.replaceOp(op, fused.getResult());
 
-        // MatmulOp has no Pure trait, so applyPatternsGreedily's DCE won't remove it
-        // automatically even with zero use, erase the matmulOp explicitly.
-        rewriter.eraseOp(matmulOp);
+        // Erase the old predecesser only if it was bare matmul
+        if (auto matmulOp = mlir::dyn_cast<MatmulOp>(predDefOp))
+            rewriter.eraseOp(matmulOp);
+
         return success();
+    }
+private:
+    static bool isChainOperand(Value v) {
+        if (!v.hasOneUse())
+            return false;
+        Operation *def = v.getDefiningOp();
+        return mlir::isa_and_nonnull<MatmulOp, FusedComputationOp>(def);
     }
 };
 
-void populateSingleOpEpilogueFusionPatterns(RewritePatternSet &patterns) {
-    patterns.add<SingleOpEpilogueFusionPattern>(patterns.getContext());
+void populateEpilogueFusionPatterns(RewritePatternSet &patterns) {
+    patterns.add<EpilogueFusionPattern>(patterns.getContext());
 }
 
 } // namespace mlir::seki

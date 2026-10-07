@@ -4,6 +4,6 @@
 
 namespace mlir::seki {
 void populateTransposeMatmulFusionPatterns(mlir::RewritePatternSet &patterns);
-void populateSingleOpEpilogueFusionPatterns(mlir::RewritePatternSet &patterns);
+void populateEpilogueFusionPatterns(mlir::RewritePatternSet &patterns);
 } // namespace mlir::seki
 #endif
