@@ -87,6 +87,9 @@ struct EpilogueFusionPattern : OpInterfaceRewritePattern<SekiEwFnOpInterface> {
             return failure();
         }
 
+        // Keep track of the number of existing ops in the fused body
+        size_t inheritedCount = bodyOps.size();
+
         // Resolve each extra operand, and fold them into groupInputs.
         // Each operand is either produced by a single-use seki.broadcast -> absorb the broadcast into the body too, and use its input (the raw bias) as group input.
         // Or each oeprand is anything else -> pass it through unchanged as a new group input.
@@ -134,11 +137,15 @@ struct EpilogueFusionPattern : OpInterfaceRewritePattern<SekiEwFnOpInterface> {
 
         rewriter.setInsertionPointToStart(block);
         Operation *lastCloned = nullptr;
-        for (Operation *bodyOp : bodyOps) {
-            lastCloned = rewriter.clone(*bodyOp, mapping);
+        for (size_t i = 0; i < bodyOps.size(); ++i) {
+            lastCloned = rewriter.clone(*bodyOps[i], mapping);
             // Map this op's old result to its clone's result so the next
             // body op (which may consume it) picks up the in-region value.
-            mapping.map(bodyOp->getResult(0), lastCloned->getResult(0));
+            mapping.map(bodyOps[i]->getResult(0), lastCloned->getResult(0));
+            if (i + 1 == inheritedCount) {
+                // chainOperand is the predecesser's result as seen from outside the group.
+                mapping.map(chainOperand, lastCloned->getResult(0));
+            }
         }
 
         YieldOp::create(rewriter, op->getLoc(), lastCloned->getResult(0));
