@@ -38,7 +38,8 @@ def Seki_MatmulOp : SekiOp<"matmul", [
 }
 
 def Seki_EwUnaryOp : SekiOp<"ew_unary",
-    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface, DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
+    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface, SekiEpilogueFusableOpInterface,
+     DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
     let summary = "Unary elementwise op on a tensor";
     let arguments = (ins Seki_UnaryFnAttr:$fn, AnyTensor:$input);
     let results   = (outs AnyTensor:$output);
@@ -47,7 +48,8 @@ def Seki_EwUnaryOp : SekiOp<"ew_unary",
 }
 
 def Seki_EwBinaryOp : SekiOp<"ew_binary",
-    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface, DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
+    [Pure, SameOperandsAndResultType, SekiEwFnOpInterface, SekiEpilogueFusableOpInterface,
+     DeclareOpInterfaceMethods<SekiExecUnitOpInterface>]> {
     let summary = "Binary elementwise op on tensors";
     let arguments = (ins Seki_BinaryFnAttr:$fn, AnyTensor:$lhs, AnyTensor:$rhs);
     let results   = (outs AnyTensor:$output);
@@ -122,7 +124,7 @@ def Seki_UpdateOp : SekiOp<"update", [Pure, AllTypesMatch<["dest", "result"]>]> 
     let hasVerifier = 1;
 }
 
-def Seki_CastOp: SekiOp<"cast", [Pure]> {
+def Seki_CastOp: SekiOp<"cast", [Pure, SekiEpilogueFusableOpInterface]> {
     let summary = "Elementwise type conversion on a tensor (e.g. f32 -> bf16)";
     let arguments = (ins AnyRankedTensor:$input);
     let results = (outs AnyRankedTensor:$output);

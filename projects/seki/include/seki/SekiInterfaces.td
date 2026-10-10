@@ -21,6 +21,16 @@ def SekiEwFnOpInterface : OpInterface<"SekiEwFnOpInterface"> {
     ];
 }
 
+def SekiEpilogueFusableOpInterface : OpInterface<"SekiEpilogueFusableOpInterface"> {
+    let description = [{
+        Maker interface with no required methods. Ops implementing this interface may be
+        absorbed by SekiFuseOpsPass's epilogue fusion pattern into a seki.fused_computation region,
+        provided they have a single result and exactly one operand by seki.matmul or an
+        existing seki.fused_computation (all other operands become new group inputs).
+    }];
+    let cppNamespace = "::mlir::seki";
+}
+
 def SekiExecUnitOpInterface : OpInterface<"SekiExecUnitOpInterface"> {
     let description = [{
         Interface implemented by all seki ops that require specific hardware execution units.

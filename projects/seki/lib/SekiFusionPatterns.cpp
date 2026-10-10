@@ -44,10 +44,10 @@ void populateTransposeMatmulFusionPatterns(RewritePatternSet &patterns) {
 // Fuses a matmul and its chain of single-use elementwise consumers into one
 // seki.fused_computation region. Grows by 1 op per pattern firing, applyPatternsGreedily's
 // fixed point handles chain of any length.
-struct EpilogueFusionPattern : OpInterfaceRewritePattern<SekiEwFnOpInterface> {
-    using OpInterfaceRewritePattern<SekiEwFnOpInterface>::OpInterfaceRewritePattern;
+struct EpilogueFusionPattern : OpInterfaceRewritePattern<SekiEpilogueFusableOpInterface> {
+    using OpInterfaceRewritePattern<SekiEpilogueFusableOpInterface>::OpInterfaceRewritePattern;
 
-    LogicalResult matchAndRewrite(SekiEwFnOpInterface op, PatternRewriter &rewriter) const override {
+    LogicalResult matchAndRewrite(SekiEpilogueFusableOpInterface op, PatternRewriter &rewriter) const override {
         // Guard: never fuse an op that's already inside a fused_computation region.
         if (op->getParentOfType<FusedComputationOp>())
             return failure();
