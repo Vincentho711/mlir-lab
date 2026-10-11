@@ -92,6 +92,93 @@ mlir::Value sliceTo2D(mlir::OpBuilder &b, mlir::Location loc, mlir::Value src, l
     auto resultType = mlir::RankedTensorType::get({dim0, dim1}, srcType.getElementType());
     return mlir::tensor::ExtractSliceOp::create(b, loc, resultType, src, offsets, sizes, strides);
 }
+
+// Shared tiled-implementation logic for seki.matmul and sek.batch_matmul.
+// offsets and sizes are exactly the iteration-domain tile: [batch..., M, K].
+// E.g. batchRank = 0, transposeB=false:
+//    A: tensor<256x512xbf16>, B: tensor<512x256xbf16>, C: tensor<256x256xf32>
+//    offsets = [128, 256], sizes = [128, 128]
+//
+//    mSize = sizes[0] = 128, kSize = sizesa[1] = 128.
+//
+//    A slice : offset/sizes used as is
+//      tensor.extract_slice %A[128,256][128,128][1,1] : tensor<256x512xbf16> to tensor<128x128xbf16>
+//
+//    B slice (tranposeB = false, B is [K,N]):
+//      nSize = B's shape[1] = 256, N is never tile, taken in full
+//      bOffsets = [offsets[1], 0] = [256,0], K-tile offset, N from 0.
+//      bSizes = [sizes[1], nSize] = [128,256]
+//      -> tensor.extract_slice %B[256,0][128x256][1,1]
+//        : tensor<512x256xbf16> to tensor<128x256xbf16>
+//
+//    C slice (output tile --M-tile, full N):
+//      cOffsets = [offsets[0], 0] = [128, 0]
+//      cSizes   = [sizes[0], nSize] = [128, 256]
+//      -> tensor<256x256xf32> to tensor<128x256xf32>
+//
+//    New op: seki.matmul ins(%aSlice, %bSlice : tensor<128x128xbf16>,
+//            tensor<128x256xbf16>) outs(%cSlice : tensor<128x256xf32>) -> tensor<128x256xf32>
+// E.g. batchRank=0, transposeB=true:
+//    Suppose B is actually tensor<256x512xbf16> (N=256, K=512, i.e. [N, K]) layout,
+//    this is the shape %K_T's original producer bad before tranpose is folded away.
+//      nSize = B's shape[0] = 256 (N is dim 0 now, not dim 1)
+//      bOffsets = [0, offset[1]] = [0, 256]  (N from 0, K-tile offset)
+//      bSizes   = [nSize, sizes[1]] = [256, 128]
+//      -> tensor.extract_slice %B[0, 256][256, 128][1, 1] : tensor<256x512xbf16> to tensor<256x128xbf16>
+//    New op carries {transpose_b}, telling the smaller matmul to interpret this [256,128] (i.e. [N, K]) slice
+//    the same way the original interpreted the whole [256,512] tensor.
+mlir::FailureOr<mlir::TilingResult> getMatmulTiledImplementation(mlir::OpBuilder &b, mlir::Location loc, mlir::Value A, mlir::Value B,
+                                                                 mlir::Value C, bool transposeB, llvm::ArrayRef<mlir::OpFoldResult> offsets,
+                                                                 mlir::ArrayRef<mlir::OpFoldResult> sizes, int64_t batchRank) {
+    mlir::OpFoldResult zero = b.getIndexAttr(0);
+
+    // A slice: offsets/sizes already [batch, M, K].
+    int64_t mSize = *mlir::getConstantIntValue(sizes[batchRank]);
+    int64_t kSize = *mlir::getConstantIntValue(sizes[batchRank + 1]);
+    mlir::Value aSlice = sliceTo2D(b, loc, A, offsets, sizes, mSize, kSize);
+
+    // B slice: physical layout depends on transposeB.
+    auto bType = mlir::cast<mlir::RankedTensorType>(B.getType());
+    llvm::SmallVector<mlir::OpFoldResult> bOffsets(offsets.begin(), offsets.begin() + batchRank);
+    llvm::SmallVector<mlir::OpFoldResult> bSizes(sizes.begin(), sizes.begin() + batchRank);
+    int64_t nSize;
+    if (!transposeB) {
+        // B is [batch..., K, N]: k-tile at offsets[batchRank+1], N taken in full.
+        nSize = bType.getShape()[batchRank + 1];
+        bOffsets.push_back(offsets[batchRank + 1]);
+        bOffsets.push_back(zero);
+        bSizes.push_back(sizes[batchRank + 1]);
+        bSizes.push_back(b.getIndexAttr(nSize));
+    } else {
+        // B is [batch..., N, K]: N is taken in full, K-tile at offset[batchRank + 1].
+        nSize = bType.getShape()[batchRank];
+        bOffsets.push_back(zero);
+        bOffsets.push_back(offsets[batchRank + 1]);
+        bSizes.push_back(b.getIndexAttr(nSize));
+        bSizes.push_back(sizes[batchRank + 1]);
+    }
+
+    mlir::Value bSlice = transposeB
+        ? sliceTo2D(b, loc, B, bOffsets, bSizes, nSize, kSize)
+        : sliceTo2D(b, loc, B, bOffsets, bSizes, kSize, nSize);
+
+    // C slice: [batch..., M, N], M-tile at offsets[batchRank], N in full.
+    llvm::SmallVector<mlir::OpFoldResult> cOffsets(offsets.begin(), offsets.begin() + batchRank);
+    llvm::SmallVector<mlir::OpFoldResult> cSizes(sizes.begin(), sizes.begin() + batchRank);
+    cOffsets.push_back(offsets[batchRank]);
+    cOffsets.push_back(zero);
+    cSizes.push_back(sizes[batchRank]);
+    cSizes.push_back(b.getIndexAttr(nSize));
+    mlir::Value cSlice = sliceTo2D(b, loc, C, cOffsets, cSizes, mSize, nSize);
+
+    // Build the new, smaller 2D seki.matmul on the three slices.
+    mlir::UnitAttr transposeBAttr = transposeB ? b.getUnitAttr() : nullptr;
+    auto tiledMatmul = MatmulOp::create(b, loc, cSlice.getType(), aSlice, bSlice,
+                                        cSlice, transposeBAttr);
+
+    return mlir::TilingResult{
+        {tiledMatmul}, {tiledMatmul.getResult()}, {aSlice.getDefiningOp(), bSlice.getDefiningOp(), cSlice.getDefiningOp()}};
+}
 } // namespace
 
 llvm::SmallVector<mlir::utils::IteratorType> MatmulOp::getLoopIteratorTypes() {
