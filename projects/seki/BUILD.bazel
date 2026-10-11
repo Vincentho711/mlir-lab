@@ -33,6 +33,7 @@ td_library(
         "@llvm-project//mlir:InferTypeOpInterfaceTdFiles",
         "@llvm-project//mlir:DestinationStyleOpInterfaceTdFiles",
         "@llvm-project//mlir:ControlFlowInterfacesTdFiles",
+        "@llvm-project//mlir:TilingInterfaceTdFiles",
     ]
 )
 
@@ -137,6 +138,8 @@ cc_library(
         "@llvm-project//mlir:InferTypeOpInterface",
         "@llvm-project//mlir:DestinationStyleOpInterface",
         "@llvm-project//mlir:ControlFlowInterfaces",
+        "@llvm-project//mlir:TilingInterface",
+        "@llvm-project//mlir:TensorDialect",
     ],
     visibility = ["//visibility:public"],
 

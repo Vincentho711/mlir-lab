@@ -8,6 +8,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/DestinationStyleOpInterface.td"
+include "mlir/Interfaces/TilingInterface.td"
 
 //===-----------------------------------------------===//
 // Seki Op base class
@@ -21,6 +22,9 @@ class SekiOp<string mnemonic, list<Trait> traits = []>
 def Seki_MatmulOp : SekiOp<"matmul", [
     DeclareOpInterfaceMethods<DestinationStyleOpInterface>,
     DeclareOpInterfaceMethods<SekiExecUnitOpInterface>,
+    DeclareOpInterfaceMethods<TilingInterface,
+        ["getIterationDomain", "getLoopIteratorTypes",
+         "getResultTilePosition", "getTiledImplementation"]>,
     AllTypesMatch<["C", "result"]>]> {
     let summary = "Matrix multiply-accumulate: C_out = A * B + C_in";
     let arguments = (ins
@@ -67,6 +71,9 @@ def Seki_ReduceOp : SekiOp<"reduce", [Pure, DeclareOpInterfaceMethods<SekiExecUn
 def Seki_BatchMatmulOp : SekiOp<"batch_matmul", [
     DeclareOpInterfaceMethods<DestinationStyleOpInterface>, 
     DeclareOpInterfaceMethods<SekiExecUnitOpInterface>, 
+    DeclareOpInterfaceMethods<TilingInterface,
+        ["getIterationDomain", "getLoopIteratorTypes",
+         "getResultTilePosition", "getTiledImplementation"]>,
     AllTypesMatch<["C", "result"]>]> {
     let summary = "Batched matrix multiply-accumulate: C_out = A * B + C_in, with leading batch dim";
     let arguments = (ins

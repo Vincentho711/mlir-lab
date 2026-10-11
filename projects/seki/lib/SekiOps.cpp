@@ -2,11 +2,113 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 
 #define GET_OP_CLASSES // Emit method bodies like build(), print(), ...
 #include "seki/SekiOps.cpp.inc"
 
 namespace mlir::seki {
+
+namespace {
+// Shared helper functions
+llvm::SmallVector<mlir::utils::IteratorType> getMatmulLoopIteratorTypes(int64_t batchRank) {
+    llvm::SmallVector<mlir::utils::IteratorType> types;
+    // Leading batch dims: each is parallel.
+    for (int64_t i = 0; i < batchRank; ++i)
+        types.push_back(mlir::utils::IteratorType::parallel);
+    // For MxKxN, M is parallel, each M-tile's output is independent of every other M-tile.
+    types.push_back(mlir::utils::IteratorType::parallel);
+    // For MxKxN, K-tile accumulate into the same output tile.
+    types.push_back(mlir::utils::IteratorType::reduction);
+    return types;
+}
+
+llvm::SmallVector<mlir::Range> getMatmulIterationDomain(mlir::OpBuilder &b, mlir::Location loc, mlir::Value A, int64_t batchRank) {
+    auto aType = mlir::cast<mlir::RankedTensorType>(A.getType());
+    llvm::ArrayRef<int64_t> aShape = aType.getShape();
+    // A's shape is [batch..., M, K], batchRank leading dims, then M then K.
+    llvm::SmallVector<mlir::Range> domain;
+    mlir::OpFoldResult zero = b.getIndexAttr(0);
+    mlir::OpFoldResult one = b.getIndexAttr(1);
+    for (int64_t i = 0; i < batchRank; ++i)
+        domain.push_back({zero, b.getIndexAttr(aShape[i]), one}); // this batch dimension runs from 0 to its full size, stepping by 1.
+    // M is the second-to-last dim of A; K is the last dim of A.
+    domain.push_back({zero, b.getIndexAttr(aShape[batchRank]), one}); // M
+    domain.push_back({zero, b.getIndexAttr(aShape[batchRank + 1]), one}); // K
+    // E.g. seki.batch_matmul on A: tensor<4x256x512xbf16> (batchRank=1, aShape=[4,256,512])
+    // aShape[0] = 4 -> Range(0, 4, 1)
+    // aShape[1] = 256 -> Range(0, 256, 1)
+    // aShape[2] = 512 -> Range(0, 512, 1)
+    // Result: domain = [Range{0,4,1}, Range{0,256,1}, Range{0,512,1}], exactly [batch, M, K]
+    return domain;
+}
+
+// Builds a (possibly rank-reducing) 2D slice of 'src' at the given full-rank offsets/sizes.
+// tensor.extract_slice %src[off0, off1, ...] [sz0, sz1, ...] [str0, str1, ..]
+//    : srcType to resultType
+// For each dimension i independently:
+//   - offset_i = the starting index into %src along dimension i.
+//                This is the "which tile" we are on: offset_i = tileIndex * tileSize.
+//   - size_i   = how many elements to take along dimension i, starting from offset_i. Ths is the tile size itself, constant across calls.
+//   - stride_i = the sstep between taken elements (1 = every slice is contiguous sub-block, never strided).
+// E.g. a 4x6 source matrix, 0-indexed:
+//
+//        col: 0   1   2   3   4   5
+//   row 0   [ 00  01  02  03  04  05 ]
+//   row 1   [ 10  11  12  13  14  15 ]
+//   row 2   [ 20  21  22  23  24  25 ]
+//   row 3   [ 30  31  32  33  34  35 ]
+//
+// tensor.extract_slice %src[2, 3] [2, 3] [1, 1] : tensor<4x6xf32> to tensor<2x3xf32>
+//   offsets = [2, 3]  -> start at row 2, col 3
+//   sizes   = [2, 3]  -> take 2 rows, 3 columns from there
+//   result (2x3): [ 23  24  25
+//                    33  34  35 ]
+//
+// Example (batchRank=0, no reduction needed -- seki.matmul):
+//   src = A, a tensor<256x512xbf16>
+//   offsets = [128, 256], sizes = [128, 128]  (M-tile, K-tile)
+//   dim0=128, dim1=128
+//   -> emits: tensor.extract_slice %A[128, 256] [128, 128] [1, 1]
+//             : tensor<256x512xbf16> to tensor<128x128xbf16>
+//      (source rank 2, result rank 2 -- ordinary slice, no reduction)
+//
+// Example (batchRank=1, rank reduction -- seki.batch_matmul):
+//   src = A, a tensor<4x256x512xbf16> (batch_matmul, batch=4)
+//   offsets = [2, 128, 256], sizes = [1, 128, 128]  (batch idx 2, same M/K tile)
+//   dim0=128, dim1=128
+//   -> emits: tensor.extract_slice %A[2, 128, 256] [1, 128, 128] [1, 1, 1]
+//             : tensor<4x256x512xbf16> to tensor<128x128xbf16>
+//      (source rank 3, result rank 2 -- the size-1 batch dim is dropped
+//       entirely from the result type; this is only legal because its
+//       size is statically 1)
+mlir::Value sliceTo2D(mlir::OpBuilder &b, mlir::Location loc, mlir::Value src, llvm::ArrayRef<mlir::OpFoldResult> offsets,
+                      llvm::ArrayRef<mlir::OpFoldResult> sizes, int64_t dim0, int64_t dim1) {
+    auto srcType = mlir::cast<mlir::RankedTensorType>(src.getType());
+    // Stride is always 1
+    llvm::SmallVector<mlir::OpFoldResult> strides(offsets.size(), b.getIndexAttr(1));
+    // Result type we ask for is always 2D (dim0xdim1).
+    // When source has more than 2 dims (batchRank > 0), requesting a smaller-rank result than the source.
+    auto resultType = mlir::RankedTensorType::get({dim0, dim1}, srcType.getElementType());
+    return mlir::tensor::ExtractSliceOp::create(b, loc, resultType, src, offsets, sizes, strides);
+}
+} // namespace
+
+llvm::SmallVector<mlir::utils::IteratorType> MatmulOp::getLoopIteratorTypes() {
+    return getMatmulLoopIteratorTypes(/*batchRank=*/0);
+}
+
+llvm::SmallVector<mlir::Range> MatmulOp::getIterationDomain(mlir::OpBuilder &b) {
+    return getMatmulIterationDomain(b, getLoc(), getA(), /*batchRank=*/0);
+}
+
+llvm::SmallVector<mlir::utils::IteratorType> BatchMatmulOp::getLoopIteratorTypes() {
+    return getMatmulLoopIteratorTypes(/*batchRank=*/1);
+}
+
+llvm::SmallVector<mlir::Range> BatchMatmulOp::getIterationDomain(mlir::OpBuilder &b) {
+    return getMatmulIterationDomain(b, getLoc(), getA(), /*batchRank=*/1);
+}
 
 // Tells the framework that C (operand index 2) is the destination for C_out = A * B + C_in
 mlir::MutableOperandRange MatmulOp::getDpsInitsMutable() {

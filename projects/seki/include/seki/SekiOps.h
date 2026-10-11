@@ -7,6 +7,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/TilingInterface.h"
 #include "seki/SekiDialect.h"
 #include "seki/SekiAttrs.h"
 #include "seki/SekiInterfaces.h"
