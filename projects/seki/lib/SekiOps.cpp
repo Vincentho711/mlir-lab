@@ -232,6 +232,20 @@ mlir::FailureOr<mlir::TilingResult> MatmulOp::getTiledImplementation(mlir::OpBui
     return getMatmulTiledImplementation(b, getLoc(), getA(), getB(), getC(), getTransposeB().has_value(), offsets, sizes, /*batchRank=*/0);
 }
 
+// batchRank=1: offsets/sizes are [batch, M, K]. Forwards to the same shared helper MatmulOp uses.
+mlir::FailureOr<mlir::TilingResult> BatchMatmulOp::getTiledImplementation(mlir::OpBuilder &b, llvm::ArrayRef<mlir::OpFoldResult> offsets,
+                                                                          llvm::ArrayRef<mlir::OpFoldResult> sizes) {
+    return getMatmulTiledImplementation(b, getLoc(), getA(), getB(), getC(), getTransposeB().has_value(), offsets, sizes, /*batchRank=*/1);
+}
+
+// batchRank = 1: output tile's position now also needs a offset/size entry.
+mlir::LogicalResult BatchMatmulOp::getResultTilePosition(mlir::OpBuilder &b, unsigned resultNumber,
+                                                         llvm::ArrayRef<mlir::OpFoldResult> offsets, llvm::ArrayRef<mlir::OpFoldResult> sizes,
+                                                         llvm::SmallVector<mlir::OpFoldResult> &resultOffsets, llvm::SmallVector<mlir::OpFoldResult> &resultSizes) {
+    getMatmulResultSliceParams(b, getC(), offsets, sizes, /*batchRank=*/1, resultOffsets, resultSizes);
+    return mlir::success();
+}
+
 llvm::SmallVector<mlir::utils::IteratorType> MatmulOp::getLoopIteratorTypes() {
     return getMatmulLoopIteratorTypes(/*batchRank=*/0);
 }

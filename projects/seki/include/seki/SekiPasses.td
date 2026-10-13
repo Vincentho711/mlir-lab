@@ -128,4 +128,21 @@ def SekiFuseOpsPass : Pass<"seki-fuse-ops", "::mlir::func::FuncOp"> {
     let dependentDialects = ["::mlir::seki::SekiDialect"];
 }
 
+def SekiTileOpsPass : Pass<"seki-tile-ops", "::mlir::ModuleOp"> {
+    let summary = "Tile seki.matmul and seki.batch_matmul into M/K lops sized to the MAC array";
+    let description = [{
+        Reads the MC array's tile size (rows/cols) from SekiTargetInfo and applies TilingInterface
+        + tileUsingSCF to every seki.matmul and seki.batch_matmul in the module.
+        M and K are tiled into step-sized scf.for loops (M outer/parallel, K inner/reduction);
+        N is left untiled. seki.batch_matmul additionally tiles its leading batch dim with step 1,
+        rank-reducing the inner op to a 2D seki.matmul. This requires --seki-attach-target
+        to have run first.
+    }];
+    let dependentDialects = [
+        "::mlir::scf::SCFDialect",
+        "::mlir::tensor::TensorDialect",
+        "::mlir::seki::SekiDialect",
+    ];
+}
+
 #endif // SEKI_PASSES_TD

@@ -161,6 +161,7 @@ cc_library(
         "lib/SekiPadToTileBoundaryPass.cpp",
         "lib/SekiFusionPatterns.cpp",
         "lib/SekiFuseOpsPass.cpp",
+        "lib/SekiTileOpsPass.cpp",
     ],
     hdrs = [
         "include/seki/SekiPasses.h",
@@ -184,6 +185,7 @@ cc_library(
         "@llvm-project//mlir:TensorDialect",
         "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:MathDialect",
+        "@llvm-project//mlir:SCFTransforms",
     ],
     visibility = ["//visibility:public"],
 )
