@@ -179,7 +179,58 @@ mlir::FailureOr<mlir::TilingResult> getMatmulTiledImplementation(mlir::OpBuilder
     return mlir::TilingResult{
         {tiledMatmul}, {tiledMatmul.getResult()}, {aSlice.getDefiningOp(), bSlice.getDefiningOp(), cSlice.getDefiningOp()}};
 }
+
+// Computes the output tile's offsets/sizes for a DPS matmul: the same region as the C-slice
+// inside getMatmulTiledImplementation (M-tile, full N), but derived from C's own shape directly,
+// since getResultTilePosition is never given B, only C.
+//
+// E.g.
+//  C: tensor<256x256xf32>, offsets=[128,256], sizes=[128,128]
+//  nSize = C's shape[1] = 256 (C's own N, read directly off C)
+//  resultOffsets = [offsets[0], 0] = [128, 0]
+//  resultSizes   = [size[0], 256] = [128, 256]
+//
+// This tells tileUsingSCF: " the 128x256 tile this iteration just computed
+// belongs at [128,0] in the full 256x256 output", i.e. rows 128..255, all 256
+// columns. tileUsingSCF uses this to emit:
+//  tensor.insert_slice %tiledResult into %fullOutput[128, 0] [128, 256] [1, 1].
+// stitching each M-tile's result back into the right rows of the final 256x256 tensor
+// after all K-tile iterations for the M-tile have accumulated into it.
+void getMatmulResultSliceParams(mlir::OpBuilder &b, mlir::Value C,
+                                llvm::ArrayRef<mlir::OpFoldResult> offsets,
+                                llvm::ArrayRef<mlir::OpFoldResult> sizes,
+                                int64_t batchRank,
+                                llvm::SmallVectorImpl<mlir::OpFoldResult> &resultOffsets,
+                                llvm::SmallVectorImpl<mlir::OpFoldResult> &resultSizes) {
+    auto cType = mlir::cast<mlir::RankedTensorType>(C.getType());
+    // C's shape is [batch..., M, N], N is the dim right after M.
+    int64_t nSize = cType.getShape()[batchRank + 1];
+    mlir::OpFoldResult zero = b.getIndexAttr(0);
+
+    resultOffsets.assign(offsets.begin(), offsets.begin() + batchRank);
+    resultSizes.assign(sizes.begin(), sizes.begin() + batchRank);
+    resultOffsets.push_back(offsets[batchRank]); // M offset
+    resultOffsets.push_back(zero);               // N from 0
+    resultSizes.push_back(sizes[batchRank]);     // M size
+    resultSizes.push_back(b.getIndexAttr(nSize));// N in full
+}
 } // namespace
+
+mlir::LogicalResult MatmulOp::getResultTilePosition(mlir::OpBuilder &b, unsigned resultNumber,
+                                                    llvm::ArrayRef<mlir::OpFoldResult> offsets,
+                                                    llvm::ArrayRef<mlir::OpFoldResult> sizes,
+                                                    llvm::SmallVector<mlir::OpFoldResult> &resultOffsets,
+                                                    llvm::SmallVector<mlir::OpFoldResult> &resultSizes) {
+    getMatmulResultSliceParams(b, getC(), offsets, sizes, /*batchRank=*/0, resultOffsets, resultSizes);
+    return mlir::success();
+}
+
+// Forwards to the shared helper with batchRank=0: seki.matmul has no leading batch dimension, so offsets/sizes
+// are exactly [M, K] (2 entries), and A/B/C are read directly via the op's own accessors.
+mlir::FailureOr<mlir::TilingResult> MatmulOp::getTiledImplementation(mlir::OpBuilder &b, llvm::ArrayRef<OpFoldResult> offsets,
+                                                                     llvm::ArrayRef<mlir::OpFoldResult> sizes) {
+    return getMatmulTiledImplementation(b, getLoc(), getA(), getB(), getC(), getTransposeB().has_value(), offsets, sizes, /*batchRank=*/0);
+}
 
 llvm::SmallVector<mlir::utils::IteratorType> MatmulOp::getLoopIteratorTypes() {
     return getMatmulLoopIteratorTypes(/*batchRank=*/0);
