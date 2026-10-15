@@ -25,6 +25,7 @@ def Seki_MatmulOp : SekiOp<"matmul", [
     DeclareOpInterfaceMethods<TilingInterface,
         ["getIterationDomain", "getLoopIteratorTypes",
          "getResultTilePosition", "getTiledImplementation"]>,
+    SekiTileableOpInterface,
     AllTypesMatch<["C", "result"]>]> {
     let summary = "Matrix multiply-accumulate: C_out = A * B + C_in";
     let arguments = (ins
@@ -74,6 +75,7 @@ def Seki_BatchMatmulOp : SekiOp<"batch_matmul", [
     DeclareOpInterfaceMethods<TilingInterface,
         ["getIterationDomain", "getLoopIteratorTypes",
          "getResultTilePosition", "getTiledImplementation"]>,
+    SekiTileableOpInterface,
     AllTypesMatch<["C", "result"]>]> {
     let summary = "Batched matrix multiply-accumulate: C_out = A * B + C_in, with leading batch dim";
     let arguments = (ins

@@ -11,7 +11,7 @@ namespace {
 
 struct SekiTileOpsPass : impl::SekiTileOpsPassBase<SekiTileOpsPass> {
     using SekiTileOpsPassBase::SekiTileOpsPassBase;
-    
+
     void runOnOperation() override {
         mlir::ModuleOp mod = getOperation();
         if (!mod->getAttrOfType<mlir::seki::SekiTargetAttr>("seki.target"))
@@ -25,7 +25,7 @@ struct SekiTileOpsPass : impl::SekiTileOpsPassBase<SekiTileOpsPass> {
         // Collect all ops that support tiling.
         llvm::SmallVector<mlir::TilingInterface> toTile;
         mod.walk([&](mlir::Operation *op) {
-            if (mlir::isa<mlir::seki::MatmulOp, mlir::seki::BatchMatmulOp>(op)) 
+            if (mlir::isa<mlir::seki::SekiTileableOpInterface>(op))
                 toTile.push_back(mlir::cast<mlir::TilingInterface>(op));
         });
 

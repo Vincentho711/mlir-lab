@@ -3,6 +3,14 @@
 
 include "mlir/IR/OpBase.td"
 
+def SekiTileableOpInterface : OpInterface<"SekiTileableOpInterface"> {
+    let description = [{
+        Marker interface with no required methods. Ops implementing this interface
+        are the ones --seki-tile-ops is responsible for tiling via TilingInterface
+        + tileUsingSCF. This scopes the pass to seki's own ops.
+    }];
+    let cppNamespace = "::mlir::seki";
+}
 def SekiEwFnOpInterface : OpInterface<"SekiEwFnOpInterface"> {
     let description = [{
         Interface implemented by seki elementwise ops that carry a fn enum attribute (ew_unary, ew_binary).
