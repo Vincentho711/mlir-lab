@@ -1,8 +1,10 @@
 #include "seki/SekiPasses.h"
 #include "seki/SekiTargetInfo.h"
 #include "seki/SekiOps.h"
+#include "seki/SekiTilingPatterns.h"
 #include "mlir/Dialect/SCF/Transforms/TileUsingInterface.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #define GEN_PASS_DEF_SEKITILEOPSPASS
 #include "seki/SekiPasses.h.inc"
@@ -52,6 +54,13 @@ struct SekiTileOpsPass : impl::SekiTileOpsPassBase<SekiTileOpsPass> {
             }
             rewriter.replaceOp(op, tilingResult->replacements);
         }
+
+        // Commute any extract_slice(cast(A)) patterns tiling just introduced
+        // into cast(extract_slice(A)).
+        mlir::RewritePatternSet patterns(&getContext());
+        mlir::seki::populateCastCommutationPatterns(patterns);
+        if (mlir::failed(mlir::applyPatternsGreedily(mod, std::move(patterns))))
+            signalPassFailure();
     }
 };
 } // namespace

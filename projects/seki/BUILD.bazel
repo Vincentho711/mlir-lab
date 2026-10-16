@@ -162,10 +162,12 @@ cc_library(
         "lib/SekiFusionPatterns.cpp",
         "lib/SekiFuseOpsPass.cpp",
         "lib/SekiTileOpsPass.cpp",
+        "lib/SekiTilingPatterns.cpp",
     ],
     hdrs = [
         "include/seki/SekiPasses.h",
-        "include/seki/SekiFusionPatterns.h"
+        "include/seki/SekiFusionPatterns.h",
+        "include/seki/SekiTilingPatterns.h"
     ],
     includes = ["include"],
     deps = [
